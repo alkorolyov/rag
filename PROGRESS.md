@@ -1,14 +1,14 @@
 # Project Progress Tracker
 
-**Last Updated**: 2025-10-12
+**Last Updated**: 2025-10-13
 
 ---
 
 ## 🎯 Current Status
 
 **Active Phase**: Phase 0 - Core Foundation (In Progress)
-**Implementation Status**: ~50% Complete - Infrastructure + FastAPI done, embeddings/RAG next
-**Next Action**: Implement embeddings module OR initialize DVC OR create FAISS wrapper
+**Implementation Status**: ~85% Complete - Embeddings + FAISS done, LLM integration next
+**Next Action**: Complete LLM client implementation → Build RAG pipeline → Create `/query` endpoint
 
 ---
 
@@ -54,6 +54,24 @@
   - [x] Health checks for both PostgreSQL and Redis
   - [x] Root endpoint and favicon endpoint
   - [x] Tested and verified working (200 OK)
+- [x] **Embeddings Module** (2025-10-13):
+  - [x] `embeddings/base.py` - BaseEmbedder abstract class with comprehensive docstrings
+  - [x] `embeddings/local_embedder.py` - sentence-transformers implementation with normalization
+  - [x] `embeddings/__init__.py` - Factory pattern with `create_embedder()`
+  - [x] Added batch_size parameter for efficient batch processing
+  - [x] Integrated embedder into FastAPI lifespan (app.state.embedder)
+  - [x] Created `/embed` endpoint for testing embeddings via API
+  - [x] Type hints with `NDArray[np.float32]` for proper numpy typing
+  - [x] All embeddings normalized (L2 norm = 1.0) for fast cosine similarity
+  - [x] Tested in notebook - 384-dim embeddings working correctly
+- [x] **FAISS Vector Store & DocumentStore** (2025-10-13):
+  - [x] `retrieval/vector_store.py` - DocumentStore class combining embedder + FAISS
+  - [x] Support for multiple index types (flat_ip, flat_l2, ivf_flat)
+  - [x] `add_documents()` with batching and progress bar (tqdm)
+  - [x] `search()` returning documents with similarity scores
+  - [x] `save()`/`load()` for persistence (FAISS index + pickle for metadata)
+  - [x] Document metadata storage alongside embeddings
+  - [x] Tested in notebook - add/search/save/load all working
 
 **Key Implementation Decisions**:
 - Config pattern: `config.py` file with `Settings` class (industry standard)
@@ -74,7 +92,7 @@
 
 **Phase 0 - Core Foundation** (Week 1-2)
 
-**Status**: ~50% complete - Infrastructure + API done, RAG components next
+**Status**: ~85% complete - Infrastructure + API + Embeddings + FAISS done, LLM integration next
 
 ### Checklist (User implementing with AI guidance):
 - [x] Create project folder structure
@@ -90,17 +108,23 @@
   - [x] `src/rag/api/routes/health.py` with health check endpoint
   - [x] `src/rag/api/dependencies.py` with DB connection pool
   - [x] `src/rag/api/models.py` with Pydantic models
-- [ ] Initialize DVC
-- [ ] Implement embeddings module
-  - [ ] sentence-transformers wrapper
-  - [ ] Caching layer
-- [ ] Implement FAISS vector store wrapper
+- [x] Implement embeddings module
+  - [x] Base embedder class + local sentence-transformers implementation
+  - [x] Factory pattern + FastAPI integration
+  - [x] `/embed` endpoint for testing
+- [x] Implement FAISS vector store wrapper (DocumentStore)
+  - [x] Add/search documents with semantic similarity
+  - [x] Save/load persistence
+- [ ] Implement LLM client module
+  - [ ] Base LLM class + local transformers implementation
+  - [ ] Factory pattern + FastAPI integration
 - [ ] Create simple RAG chain
-  - [ ] Document loading
-  - [ ] Embedding generation
-  - [ ] Vector storage
-  - [ ] Retrieval + generation
+  - [x] Embedding generation (embeddings module)
+  - [x] Vector storage (DocumentStore)
+  - [ ] LLM generation (in progress)
+  - [ ] RAG orchestration (retrieve → context → generate)
 - [ ] Add `/query` endpoint
+- [ ] Initialize DVC
 - [ ] Set up MLflow tracking
 - [ ] Write tests for core functionality
 - [ ] Create Makefile for common commands
@@ -155,7 +179,7 @@
 | Phase | Status | Progress | Completion Date |
 |-------|--------|----------|----------------|
 | Planning | ✅ Complete | 100% | 2025-10-09 |
-| Phase 0 | 🟡 In Progress | ~50% | TBD |
+| Phase 0 | 🟡 In Progress | ~85% | TBD |
 | Phase 1 | ⏳ Pending | 0% | TBD |
 | Phase 2 | ⏳ Pending | 0% | TBD |
 | Phase 3 | ⏳ Pending | 0% | TBD |
@@ -184,13 +208,24 @@
 - [x] **psycopg3** - Connection pooling, context managers, async-ready architecture
 - [x] **API health checks** - Service status monitoring, HTTP status codes (200/503)
 - [x] **Error handling patterns** - When to log (health vs business logic), log levels
+- [x] **Embeddings & Vector Representations** - How semantic search works, dense vectors
+- [x] **sentence-transformers** - Local embedding models, mean pooling, sequence limits (256 tokens)
+- [x] **NumPy typing** - NDArray[np.float32], proper type hints for arrays
+- [x] **Vector normalization** - L2 norm = 1.0 for fast cosine similarity via dot product
+- [x] **Strategy Pattern** - BaseEmbedder abstract class, multiple provider implementations
+- [x] **Factory Pattern** - create_embedder() for provider abstraction
+- [x] **FAISS** - Flat indexes (IndexFlatIP, IndexFlatL2), exact similarity search
+- [x] **Document storage patterns** - Metadata alongside embeddings, index mapping
+- [x] **REST API design** - POST vs GET for transformations, request body validation
+- [x] **FastAPI app.state** - Shared resources via lifespan, dependency injection pattern
+- [x] **Batched processing** - Efficient embedding generation, progress bars (tqdm)
+- [x] **Persistence patterns** - faiss.write_index(), pickle for metadata
 - [ ] LangChain chains and components
 - [ ] LlamaIndex document indexing
-- [ ] FAISS vector similarity search
-- [ ] RAG pipeline architecture
+- [ ] RAG pipeline architecture (retrieve → context → generate)
+- [ ] LLM inference (transformers library)
 - [ ] DVC for data versioning
 - [ ] MLflow experiment tracking
-- [ ] PostgreSQL with pgvector setup
 
 ---
 
@@ -347,9 +382,77 @@ Captured during planning:
 - OR initialize DVC for data versioning
 - OR start building simple RAG chain with LangChain
 
+### Session 2025-10-13 (Embeddings & FAISS Implementation)
+**Topics Covered**:
+- Embeddings architecture patterns (Strategy + Factory patterns)
+- NumPy typing and float32 vs float64 for embeddings
+- Vector normalization for efficient cosine similarity
+- sentence-transformers internals (pooling, sequence length limits)
+- FAISS index types and similarity metrics
+- Document storage patterns (embeddings + metadata)
+- REST API design for embedding endpoints
+- Save/load patterns for FAISS indexes
+- Deduplication strategies (content-based, ID-based)
+
+**What Was Implemented**:
+- `embeddings/base.py` - BaseEmbedder abstract class with `embed_text()`, `embed_batch()`, `dimension`, `model_name`
+- `embeddings/local_embedder.py` - LocalEmbedder using sentence-transformers with normalization
+- `embeddings/__init__.py` - Factory function `create_embedder(settings)`
+- `api/routes/embed.py` - `/embed` POST endpoint for testing embeddings
+- `api/models.py` - EmbedRequest and EmbedResponse Pydantic models
+- `retrieval/vector_store.py` - DocumentStore class combining embedder + FAISS
+- Added comprehensive docstrings to all classes and methods
+- Integrated embedder into FastAPI lifespan (app.state.embedder)
+- Tested all components in notebooks (02, 04, 05)
+
+**Key Decisions Made**:
+- Use `np.float32` for embeddings (50% memory savings vs float64, no quality loss)
+- Normalize embeddings (L2 norm = 1.0) for fast cosine similarity via inner product
+- Use `NDArray[np.float32]` type hints for proper numpy typing
+- Combine embedder + FAISS in DocumentStore (pragmatic for Phase 0, can refactor later)
+- Use POST for `/embed` endpoint (industry standard, supports long texts)
+- Use `app.state` for storing embedder (clean alternative to global variables)
+- Store documents as list alongside FAISS index (simple metadata storage)
+- Use pickle for document persistence (fast, simple for Phase 0)
+- Return type `BaseEmbedder` in dependencies (interface, not implementation)
+
+**Key Learnings**:
+- sentence-transformers uses mean pooling and truncates at 256 tokens (no auto-chunking!)
+- FAISS stores embeddings in memory when `.add()` is called
+- IndexFlatIP for normalized vectors = cosine similarity
+- Embeddings must be 2D for FAISS search: `(n_queries, dimension)`
+- Abstract properties satisfied by instance attributes in Python (but inconsistent)
+- Industry standard: separate embedder and vector store, compose via dependency injection
+- For Phase 0: pragmatism > perfect architecture (can refactor in Phase 2)
+
+**Test Results**:
+- Embeddings: 384-dim vectors, L2 norm = 1.0 (normalized correctly)
+- `/embed` endpoint: 200 OK, returns embedding + dimension + model name
+- DocumentStore: add/search/save/load all working correctly
+- Search returns relevant documents with similarity scores
+
+**Next Session Goals**:
+- Complete local LLM client implementation (transformers with Mistral-7B)
+- Build simple RAG pipeline (retrieve → context → generate)
+- Create `/query` endpoint for end-to-end RAG
+- Test full RAG flow in notebook
+
 ---
 
 ## 🔄 Change Log
+
+**2025-10-13**:
+- Implemented complete embeddings module (base class, local embedder, factory pattern)
+- Added comprehensive docstrings to all embedding classes
+- Created `/embed` endpoint for testing embeddings via API
+- Integrated embedder into FastAPI lifespan (app.state pattern)
+- Implemented DocumentStore with FAISS (add/search/save/load)
+- Added support for multiple FAISS index types
+- Implemented batched document processing with progress bars
+- Created persistence layer (FAISS index + pickle metadata)
+- Tested embeddings and vector store in notebooks
+- Started LLM client implementation (notebook 05)
+- Phase 0 now 85% complete
 
 **2025-10-12**:
 - Implemented FastAPI application skeleton (main.py, routes, dependencies, models)
