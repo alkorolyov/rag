@@ -1,0 +1,50 @@
+[project]
+name = "rag"
+version = "0.1.0"
+description = "General purpose RAG system"
+authors = [
+    {name = "Alex",email = "alexander.korolyov@selvita.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+packages = [
+  { include = "rag", from = "src" }
+]
+dependencies = [
+    "transformers (==4.56.0)",
+    "pandas (>=2.3.3,<3.0.0)",
+    "sentence-transformers (>=5.1.1,<6.0.0)",
+    "fastapi (>=0.118.3,<0.119.0)",
+    "uvicorn[standard] (>=0.37.0,<0.38.0)",
+    "langchain (>=0.3.27,<0.4.0)",
+    "langchain-openai (>=0.3.35,<0.4.0)",
+    "langchain-community (>=0.3.31,<0.4.0)",
+    "faiss-cpu (>=1.12.0,<2.0.0)",
+    "openai (>=2.3.0,<3.0.0)",
+    "tiktoken (>=0.12.0,<0.13.0)",
+    "sqlalchemy (>=2.0.43,<3.0.0)",
+    "redis (>=6.4.0,<7.0.0)",
+    "mlflow (>=3.4.0,<4.0.0)",
+    "dvc (>=3.63.0,<4.0.0)",
+    "dvc-s3 (>=3.2.2,<4.0.0)",
+    "pydantic-settings (>=2.11.0,<3.0.0)",
+    "python-dotenv (>=1.1.1,<2.0.0)",
+    "psycopg[binary] (>=3.2.10,<4.0.0)",
+    "psycopg-pool (>=3.2.6,<4.0.0)"
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "notebook (>=7.4.7,<8.0.0)",
+    "pytest (>=8.4.2,<9.0.0)",
+    "pytest-asyncio (>=1.2.0,<2.0.0)",
+    "black (>=25.9.0,<26.0.0)",
+    "ruff (>=0.14.0,<0.15.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "datasets (>=4.2.0,<5.0.0)",
+    "seaborn (>=0.13.2,<0.14.0)"
+]
