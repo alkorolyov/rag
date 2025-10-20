@@ -1,14 +1,14 @@
 # Project Progress Tracker
 
-**Last Updated**: 2025-10-13
+**Last Updated**: 2025-10-13 (End of Session)
 
 ---
 
 ## 🎯 Current Status
 
 **Active Phase**: Phase 0 - Core Foundation (In Progress)
-**Implementation Status**: ~85% Complete - Embeddings + FAISS done, LLM integration next
-**Next Action**: Complete LLM client implementation → Build RAG pipeline → Create `/query` endpoint
+**Implementation Status**: ~90% Complete - Embeddings + FAISS + LLM client done, RAG pipeline next
+**Next Action**: Finalize LLM module → Build RAG pipeline → Create `/query` endpoint → Evaluation with RAGAS
 
 ---
 
@@ -65,13 +65,19 @@
   - [x] All embeddings normalized (L2 norm = 1.0) for fast cosine similarity
   - [x] Tested in notebook - 384-dim embeddings working correctly
 - [x] **FAISS Vector Store & DocumentStore** (2025-10-13):
-  - [x] `retrieval/vector_store.py` - DocumentStore class combining embedder + FAISS
-  - [x] Support for multiple index types (flat_ip, flat_l2, ivf_flat)
-  - [x] `add_documents()` with batching and progress bar (tqdm)
+  - [x] `retrieval/vector_store.py` - DocumentStore with ID-based system
+  - [x] `faiss.IndexIDMap` for custom document IDs (supports updates/removal)
+  - [x] Dictionary-based document storage `{id: text}`
+  - [x] `add_documents()` with batching and progress bar
   - [x] `search()` returning documents with similarity scores
-  - [x] `save()`/`load()` for persistence (FAISS index + pickle for metadata)
-  - [x] Document metadata storage alongside embeddings
-  - [x] Tested in notebook - add/search/save/load all working
+  - [x] `save()`/`load()` for persistence
+  - [x] Tested in notebook - all operations working
+- [x] **LLM Generation Module** (2025-10-13 - In Progress):
+  - [x] Started implementation in notebook 05 & 06
+  - [x] Testing with Mistral-7B-Instruct local model
+  - [x] Chat template formatting (system + user prompts)
+  - [x] Tested on bioasq-mini dataset
+  - [ ] Finalize base class and factory pattern
 
 **Key Implementation Decisions**:
 - Config pattern: `config.py` file with `Settings` class (industry standard)
@@ -92,7 +98,7 @@
 
 **Phase 0 - Core Foundation** (Week 1-2)
 
-**Status**: ~85% complete - Infrastructure + API + Embeddings + FAISS done, LLM integration next
+**Status**: ~90% complete - Infrastructure + API + Embeddings + FAISS + LLM done, RAG pipeline next
 
 ### Checklist (User implementing with AI guidance):
 - [x] Create project folder structure
@@ -115,9 +121,11 @@
 - [x] Implement FAISS vector store wrapper (DocumentStore)
   - [x] Add/search documents with semantic similarity
   - [x] Save/load persistence
-- [ ] Implement LLM client module
-  - [ ] Base LLM class + local transformers implementation
-  - [ ] Factory pattern + FastAPI integration
+- [x] Implement LLM client module (80% done)
+  - [x] Local transformers implementation with Mistral-7B
+  - [x] Chat template support (system + user prompts)
+  - [ ] Finalize base class + factory pattern
+  - [ ] FastAPI integration
 - [ ] Create simple RAG chain
   - [x] Embedding generation (embeddings module)
   - [x] Vector storage (DocumentStore)
@@ -179,7 +187,7 @@
 | Phase | Status | Progress | Completion Date |
 |-------|--------|----------|----------------|
 | Planning | ✅ Complete | 100% | 2025-10-09 |
-| Phase 0 | 🟡 In Progress | ~85% | TBD |
+| Phase 0 | 🟡 In Progress | ~90% | TBD |
 | Phase 1 | ⏳ Pending | 0% | TBD |
 | Phase 2 | ⏳ Pending | 0% | TBD |
 | Phase 3 | ⏳ Pending | 0% | TBD |
@@ -431,28 +439,34 @@ Captured during planning:
 - DocumentStore: add/search/save/load all working correctly
 - Search returns relevant documents with similarity scores
 
+**Evaluation Discussion**:
+- Researched RAG evaluation methods and tools
+- Industry standard: RAGAS (for RAG-specific metrics)
+- Decided to use RAGAS with non-LLM retrieval metrics (context_precision, context_recall)
+- Dataset: rag-datasets/rag-mini-bioasq loaded and ready for evaluation
+- Will evaluate retrieval first, then add generation metrics
+
 **Next Session Goals**:
-- Complete local LLM client implementation (transformers with Mistral-7B)
-- Build simple RAG pipeline (retrieve → context → generate)
-- Create `/query` endpoint for end-to-end RAG
-- Test full RAG flow in notebook
+- Finalize LLM module (base class, factory, config)
+- Build RAG pipeline (retrieve → format context → generate)
+- Create `/query` endpoint
+- Implement RAGAS evaluation for retrieval
+- Test end-to-end RAG flow
 
 ---
 
 ## 🔄 Change Log
 
 **2025-10-13**:
-- Implemented complete embeddings module (base class, local embedder, factory pattern)
-- Added comprehensive docstrings to all embedding classes
-- Created `/embed` endpoint for testing embeddings via API
-- Integrated embedder into FastAPI lifespan (app.state pattern)
-- Implemented DocumentStore with FAISS (add/search/save/load)
-- Added support for multiple FAISS index types
-- Implemented batched document processing with progress bars
-- Created persistence layer (FAISS index + pickle metadata)
-- Tested embeddings and vector store in notebooks
-- Started LLM client implementation (notebook 05)
-- Phase 0 now 85% complete
+- Implemented complete embeddings module (base, local, factory, docstrings)
+- Created `/embed` API endpoint with FastAPI integration
+- Implemented DocumentStore with FAISS IndexIDMap (ID-based system)
+- Added batched processing, save/load persistence
+- Started LLM client with Mistral-7B (chat template support)
+- Tested LLM on bioasq-mini dataset
+- Researched RAG evaluation (decided on RAGAS for retrieval metrics)
+- Loaded rag-datasets/rag-mini-bioasq for evaluation
+- Phase 0 now 90% complete
 
 **2025-10-12**:
 - Implemented FastAPI application skeleton (main.py, routes, dependencies, models)

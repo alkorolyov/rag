@@ -2,6 +2,7 @@ from typing import Optional, List
 
 import numpy as np
 from numpy.typing import NDArray
+import torch
 
 from sentence_transformers import SentenceTransformer
 from rag.embeddings.base import BaseEmbedder
@@ -35,6 +36,7 @@ class LocalEmbedder(BaseEmbedder):
     def __init__(self, model_name: str, **kwargs):
         self._model_name = model_name
         self.model = SentenceTransformer(model_name, **kwargs)
+        self.model.eval()  # Ensure model is in evaluation mode
 
     def embed_text(self, text: str) -> NDArray[np.float32]:
         """
@@ -53,7 +55,8 @@ class LocalEmbedder(BaseEmbedder):
             >>> vector.shape
             (384,)
         """
-        return self.model.encode(text, normalize_embeddings=True)
+        result = self.model.encode(text, normalize_embeddings=True)
+        return result
 
     def embed_batch(self, batch: List[str], batch_size: int = 32) -> NDArray[np.float32]:
         """
@@ -75,7 +78,8 @@ class LocalEmbedder(BaseEmbedder):
             >>> vectors.shape
             (2, 384)
         """
-        return self.model.encode(batch, normalize_embeddings=True, batch_size=batch_size)
+        result = self.model.encode(batch, normalize_embeddings=True, batch_size=batch_size)
+        return result
 
     @property
     def dimension(self) -> int:

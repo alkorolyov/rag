@@ -1,6 +1,6 @@
 import pickle
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple, List, Any, Optional, Sequence
 
 import faiss
 import numpy as np
@@ -26,16 +26,35 @@ class DocumentStore:
         if index_name not in self.SUPPORTED_INDEXES:
             raise ValueError("Invalid index name '{}'".format(index_name))
 
-        self.documents = []
-        self.embedder = embedder
-        self.index = self.SUPPORTED_INDEXES[index_name](embedder.dimension)
+        self.index_name = index_name
 
-    def add_documents(self, docs: List[str], batch_size: int = 512, verbose: bool = False):
+        self.documents = {}  # Store as dict: {id: text}
+        self.embedder = embedder
+
+        base_index = self.SUPPORTED_INDEXES[index_name](embedder.dimension)
+        self.index = faiss.IndexIDMap(base_index)
+
+
+    def add_documents(self, docs: Sequence[str], ids: Sequence[int], batch_size: int = 512, verbose: bool = False):
+        if len(ids) != len(docs):
+            raise ValueError(f"Number of IDs ({len(ids)}) must match number of documents ({len(docs)})")
+
         pbar = tqdm(total=len(docs), desc='Adding documents', disable=not verbose)
-        for batch in batched(docs, batch_size):
-            self.documents.extend(batch)
+        for i, batch in enumerate(batched(docs, batch_size)):
+            batch_start_idx = i * batch_size
+            batch_end_idx = batch_start_idx + len(batch)
+
+            batch_ids_list = ids[batch_start_idx:batch_end_idx]
+
+            # Store documents in dict keyed by ID
+            for doc_id, doc_text in zip(batch_ids_list, batch):
+                self.documents[doc_id] = doc_text
+
             embeddings = self.embedder.embed_batch(batch)
-            self.index.add(embeddings)
+
+            batch_ids = np.array(batch_ids_list, dtype=np.int64)
+            self.index.add_with_ids(embeddings, batch_ids)
+
             pbar.update(len(batch))
         pbar.close()
 
@@ -43,12 +62,14 @@ class DocumentStore:
         query_emb = self.embedder.embed_batch([query])
         distances, indices = self.index.search(query_emb, k)
         results = []
-        for dist, i in zip(distances.flatten(), indices.flatten()):
-            results.append({
-                "text": self.documents[i],
-                "distance": float(dist),
-                "index": int(i),
-            })
+        for dist, doc_id in zip(distances.flatten(), indices.flatten()):
+            doc_id = int(doc_id)
+            if doc_id in self.documents:
+                results.append({
+                    "text": self.documents[doc_id],
+                    "distance": float(dist),
+                    "id": doc_id,
+                })
         return results
 
     def save(self, path: str):
@@ -69,5 +90,5 @@ class DocumentStore:
 
         self.index = faiss.read_index(f"{path}.index")
 
-
-
+    def __repr__(self):
+        return f"{self.__class__.__name__}(total={self.index.ntotal}, index={self.index_name})"

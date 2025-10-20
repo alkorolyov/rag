@@ -6,6 +6,7 @@ class BaseLLM(ABC):
     def generate(
             self,
             prompt: str,
+            system_prompt: str,
             max_tokens: int = 512,
             temperature: float = 1.0,
             **kwargs,
