@@ -3,6 +3,9 @@ from numpy.typing import NDArray
 from abc import ABC, abstractmethod
 from typing import List
 
+from tokenizers import Tokenizer
+from transformers import AutoTokenizer
+
 
 class BaseEmbedder(ABC):
     """
@@ -66,7 +69,6 @@ class BaseEmbedder(ABC):
         """
         ...
 
-    @property
     @abstractmethod
     def model_name(self) -> str:
         ...

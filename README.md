@@ -446,8 +446,30 @@ open http://localhost:8000/docs
 
 ## Project Status
 
-**Current Phase**: Phase 0 - Foundation Setup
-**Next Milestone**: Docker Compose + Basic RAG endpoint
+**Current Phase**: Phase 0 - Foundation Setup (95% Complete)
+**Next Milestone**: RAG Pipeline Integration + `/query` Endpoint + DVC + MLflow
+
+**Completed Components**:
+- ✅ Infrastructure (Docker Compose with PostgreSQL + pgvector + Redis)
+- ✅ FastAPI application with health checks
+- ✅ Embeddings module (sentence-transformers with local models)
+- ✅ FAISS vector store (DocumentStore with IndexIDMap)
+- ✅ LLM generation (LocalLLM with Qwen/Qwen2.5-7B-Instruct)
+- ✅ Text chunking (RecursiveChunker)
+- ✅ Reranking (CrossEncoderReranker)
+- ✅ Evaluation framework (bioasq-mini dataset experiments)
+
+**In Progress**:
+- 🟡 RAG pipeline orchestration (integrate all components)
+- 🟡 `/query` API endpoint
+- 🟡 DVC for data versioning
+- 🟡 MLflow for experiment tracking
+
+**Documentation**:
+- 📄 [STATUS.md](STATUS.md) - Current status (read first!)
+- 📄 [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) - Tech stack & teaching approach
+- 📄 [ARCHIVE.md](ARCHIVE.md) - Historical session notes
+- 📄 [INSTRUCTIONS_FOR_AI.md](INSTRUCTIONS_FOR_AI.md) - AI assistant guide
 
 ---
 
@@ -472,4 +494,4 @@ open http://localhost:8000/docs
 
 ---
 
-**Last Updated**: 2025-10-09
+**Last Updated**: 2025-10-24

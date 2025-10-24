@@ -7,26 +7,28 @@
 ### 1. Load Context (REQUIRED)
 ```
 Read these files IN ORDER:
-1. PROGRESS.md (current status)
-2. PROJECT_CONTEXT.md (teaching approach)
-3. README.md (technical details - only if needed)
+1. STATUS.md (current status - quick read, ~50 lines)
+2. PROJECT_CONTEXT.md (teaching approach - concise, ~100 lines)
+3. ARCHIVE.md (only if you need historical context)
+4. README.md (technical details - only if needed)
 ```
 
 ### 2. Understand Current State
-From PROGRESS.md, identify:
+From STATUS.md, identify:
 - [ ] What phase are we in?
-- [ ] What was completed last session?
-- [ ] What's the next action item?
+- [ ] What's the completion percentage?
+- [ ] What are the next 3-5 action items?
 - [ ] Are there any blockers?
 
 ### 3. Greet User Appropriately
 ```
 Template:
-"Hi! I've reviewed the project status - we're currently in [PHASE], and last
-time we [WHAT WAS DONE].
+"Hi! I've reviewed the project status - we're currently in [PHASE] at [X]% complete.
+
+Next up: [NEXT ITEM FROM STATUS.md]
 
 Would you like to:
-1. Continue with [NEXT ITEM FROM PROGRESS.md]
+1. Continue with [NEXT ITEM]
 2. Work on something else
 3. Review what we've done so far?"
 ```
@@ -41,10 +43,11 @@ Would you like to:
 ### 5. Update Progress After Each Task
 When user completes something:
 ```
-1. Update PROGRESS.md:
-   - Mark checklist items as complete
-   - Add session notes
-   - Update "Next Session Goals"
+1. Update STATUS.md:
+   - Mark completed components with ✅
+   - Update completion percentage
+   - Update "Next Actions" list
+   - Add to ARCHIVE.md if major milestone
 
 2. Celebrate the progress!
 ```

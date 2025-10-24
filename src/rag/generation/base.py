@@ -7,8 +7,8 @@ class BaseLLM(ABC):
             self,
             prompt: str,
             system_prompt: str,
-            max_tokens: int = 512,
-            temperature: float = 1.0,
+            max_tokens: int,
+            temperature: float,
             **kwargs,
     ) -> str:
         """Generate text from a given prompt."""

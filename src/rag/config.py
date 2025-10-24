@@ -52,11 +52,21 @@ class Settings(BaseSettings):
     embedding_provider: str
     embedding_model: str
     embedding_device: str
+    k: int
+
+    # chunking
+    chunker_type: str  # e.g., "recursive"
     chunk_size: int
     chunk_overlap: int
+
+    # reranker
+    reranker_model: str
+    reranker_device: str
     top_k: int
 
     # llm
+    llm_type: str
+    llm_device: str
     llm_model: str
     llm_temperature: float
     max_tokens: int

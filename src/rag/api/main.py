@@ -6,6 +6,7 @@ from fastapi.responses import Response
 
 from rag.config import settings
 from rag.embeddings import create_embedder
+from rag.generation import create_llm
 from rag.logger import setup_logger
 from rag.api.routes import health, embed
 
@@ -18,8 +19,11 @@ async def lifespan(app: FastAPI):
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"API: https://{settings.api_host}:{settings.api_port}")
 
-    app.state.embedder = create_embedder()
+    app.state.embedder = create_embedder(settings)
     logger.info(f"Embedding model loaded: {settings.embedding_model}")
+
+    app.state.llm_model = create_llm(settings)
+    logger.info(f"LLM model loaded: {settings.llm_model}")
 
     yield
 

@@ -21,7 +21,7 @@ class LocalLLM(BaseLLM):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 
-    def generate(self, prompt: str, system_prompt: str, max_tokens: int, temperature: float) -> str:
+    def generate(self, prompt: str, system_prompt: str, max_tokens: int, temperature: float, **kwargs) -> str:
         ctx = torch.autocast(device_type="cuda", dtype=torch.bfloat16)
 
         messages = [
