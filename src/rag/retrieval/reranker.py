@@ -8,7 +8,7 @@ from rag.storage.models import Document
 
 class BaseReranker(ABC):
     @abstractmethod
-    def rerank(self, query: str, documents: List[List[str]], indices: List[str | int]) -> List[str | int]:
+    def rerank(self, query: str, documents: List[Document]) -> List[Document]:
         ...
 
     # @abstractmethod

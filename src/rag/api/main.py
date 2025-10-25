@@ -8,9 +8,13 @@ from rag.config import settings
 from rag.embeddings import create_embedder
 from rag.generation import create_llm
 from rag.logger import setup_logger
-from rag.api.routes import health, embed
+from rag.api.routes import health, embed, query
+from rag.pipeline import RAGPipeline
+from rag.retrieval import create_reranker
+from rag.storage import create_doc_store, create_vector_store
 
 logger = setup_logger(name=__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -22,8 +26,27 @@ async def lifespan(app: FastAPI):
     app.state.embedder = create_embedder(settings)
     logger.info(f"Embedding model loaded: {settings.embedding_model}")
 
-    app.state.llm_model = create_llm(settings)
+    app.state.reranker = create_reranker(settings)
+    logger.info(f"Reranker model loaded: {settings.reranker_model}")
+
+    app.state.llm = create_llm(settings)
     logger.info(f"LLM model loaded: {settings.llm_model}")
+
+    app.state.doc_store = create_doc_store(settings)
+
+    app.state.vec_store = create_vector_store(settings, app.state.embedder)
+
+
+    app.state.rag_pipeline = RAGPipeline(
+        app.state.doc_store,
+        app.state.vec_store,
+        app.state.embedder,
+        app.state.reranker,
+        app.state.llm,
+        settings
+    )
+
+    logger.info(f"RAG API pipeline initialized")
 
     yield
 
@@ -39,6 +62,7 @@ app = FastAPI(
 
 app.include_router(health.router)
 app.include_router(embed.router)
+app.include_router(query.router)
 
 @app.get('/')
 async def root():

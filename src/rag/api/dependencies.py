@@ -9,6 +9,7 @@ from fastapi.requests import Request
 from rag.config import settings, Settings
 from rag.logger import setup_logger
 from rag.embeddings import BaseEmbedder
+from rag.pipeline import RAGPipeline
 
 logger = setup_logger(__name__)
 
@@ -19,12 +20,12 @@ postgres_params = {
     "user": settings.postgres_user,
     "password": settings.postgres_password.get_secret_value(),
 }
+
 pool = ConnectionPool(
     min_size=1,
     max_size=10,
     kwargs=postgres_params,
 )
-
 
 def get_settings() -> Settings:
     return settings
@@ -51,3 +52,6 @@ def get_embedder(request: Request) -> BaseEmbedder:
     depends on config (LocalEmbedder, OpenAIEmbedder, etc.)
     """
     return request.app.state.embedder
+
+def get_rag_pipeline(request: Request) -> RAGPipeline:
+    return request.app.state.rag_pipeline

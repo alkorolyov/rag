@@ -48,9 +48,18 @@ class Settings(BaseSettings):
     redis_maxmemory: str
     redis_maxmemory_policy: str
 
+    # document store
+    doc_store: str
+    doc_store_path: str = "data/doc_store.pkl"  # Path to save/load document store
+
+    # vector store
+    vec_store: str
+    vec_store_path: str = "data/vec_store"  # Path to save/load vector store (without extension)
+
     # embeddings
     embedding_provider: str
     embedding_model: str
+    embedding_dimension: int
     embedding_device: str
     k: int
 
@@ -69,7 +78,7 @@ class Settings(BaseSettings):
     llm_device: str
     llm_model: str
     llm_temperature: float
-    max_tokens: int
+    llm_max_tokens: int
 
     # api keys
     openai_api_key: SecretStr

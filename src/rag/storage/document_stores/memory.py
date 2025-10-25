@@ -230,5 +230,39 @@ class InMemoryDocumentStore(BaseDocumentStore):
         """
         return len(self._store)
 
+    def save(self, path: str) -> None:
+        """
+        Save the document store to disk using pickle.
+
+        Args:
+            path: File path to save to (e.g., "data/doc_store.pkl")
+        """
+        from pathlib import Path
+        import pickle
+
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+        with open(path, "wb") as f:
+            pickle.dump(self._store, f)
+
+    def load(self, path: str) -> None:
+        """
+        Load the document store from disk.
+
+        Args:
+            path: File path to load from
+
+        Raises:
+            FileNotFoundError: If file does not exist
+        """
+        from pathlib import Path
+        import pickle
+
+        if not Path(path).exists():
+            raise FileNotFoundError(f"Document store file not found: {path}")
+
+        with open(path, "rb") as f:
+            self._store = pickle.load(f)
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(count={self.count()})"

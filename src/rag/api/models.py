@@ -14,3 +14,18 @@ class EmbedResponse(BaseModel):
     embedding: List[float]
     dimension: int
     model: str
+
+class QueryRequest(BaseModel):
+    question: str
+    k: int = 100  # Number of initial results from vector search
+    top_k: int = 5  # Number of results after reranking
+
+class SourceDocument(BaseModel):
+    doc_id: str
+    text: str
+    score: float
+
+class QueryResponse(BaseModel):
+    question: str
+    answer: str
+    sources: List[SourceDocument]
