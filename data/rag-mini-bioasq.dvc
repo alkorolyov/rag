@@ -1,0 +1,6 @@
+outs:
+- md5: 0b9d04ec5c8330d4d25b8dcec7da3017.dir
+  size: 42075664
+  nfiles: 3
+  hash: md5
+  path: rag-mini-bioasq
