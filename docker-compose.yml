@@ -35,10 +35,29 @@ services:
     healthcheck:
       test: redis-cli ping
 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: rag-mlflow
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri file:///mlflow
+      --default-artifact-root file:///mlflow/artifacts
+    healthcheck:
+      test: curl -f http://localhost:5000/health || exit 1
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  mlflow_data:
     driver: local
 
 

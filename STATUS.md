@@ -2,15 +2,15 @@
 
 **Last Updated**: 2025-10-26
 **Phase**: Phase 1 - Data Engineering
-**Completion**: Phase 0 Complete (100%)
-**Next Milestone**: DVC + MLflow Setup
+**Completion**: Phase 0 Complete (100%), Phase 1 (90%)
+**Next Milestone**: Unit Tests
 
 ---
 
 ## ✅ Completed Components
 
 ### Infrastructure & API
-- Docker Compose (PostgreSQL + pgvector + Redis)
+- Docker Compose (PostgreSQL + pgvector + Redis + MLflow)
 - FastAPI application with health checks
 - Config management (pydantic-settings)
 - Logging setup
@@ -55,9 +55,28 @@
   - IR: P@10=0.346, R@10=0.341, MRR@10=0.612, Hit@10=0.97
   - RAGAS: faithfulness=0.89, answer_relevancy=0.87, answer_correctness=0.62
 - **Notebooks**: bioasq-mini dataset experiments
-  - Embedder comparisons (08_reranker.ipynb with deduplication)
+  - Embedder comparisons (04_compare_embedders.ipynb, 08_reranker.ipynb)
   - Chunking strategies, reranker testing
   - Full pipeline evaluation (09_full_pipeline.ipynb)
+  - MLflow integration (14_mlflow.ipynb)
+
+### MLOps & Reproducibility
+- **DVC (Data Version Control)** ✅
+  - Initialized for data versioning
+  - Local remote: /tmp/dvc-storage
+  - Tracked datasets: rag-mini-bioasq (docs + queries)
+  - .dvc files in Git for reproducibility
+- **MLflow (Experiment Tracking)** ✅
+  - Docker service on http://localhost:5000
+  - File-based backend (simple setup)
+  - Named volume: mlflow_data
+  - ExperimentTracker utility (src/rag/tracking.py)
+    - Auto-logs git commit hash
+    - Auto-logs DVC data hashes
+    - Metric name sanitization (@ → _at_)
+  - Experiment naming: {component}-{task}-{dataset}
+  - Run naming: {model}-{params}
+  - Tags: experiment_type, phase, dataset, components
 
 ---
 
@@ -70,8 +89,15 @@
    - ✅ LLM-as-judge metrics (faithfulness, relevancy, correctness)
    - ✅ Redis caching for LLM calls
    - ✅ Deduplication fixes in evaluation notebooks
-4. **DVC Setup** - Initialize data versioning for datasets and models
-5. **MLflow Setup** - Experiment tracking and model registry
+4. **DVC Setup** - ✅ COMPLETED!
+   - ✅ DVC initialized with local remote
+   - ✅ Datasets tracked (bioasq-mini docs + queries)
+   - ✅ .dvc files committed to Git
+5. **MLflow Setup** - ✅ COMPLETED!
+   - ✅ MLflow server running in Docker
+   - ✅ ExperimentTracker utility with Git + DVC integration
+   - ✅ Experiment naming patterns established
+   - ✅ 14_mlflow.ipynb demonstrates full workflow
 6. **Unit Tests** - Core module testing (embeddings, storage, retrieval)
 
 ---
@@ -87,7 +113,7 @@ None
 | Phase | Status | Progress |
 |-------|--------|----------|
 | Phase 0: Foundation | ✅ Complete | 100% |
-| Phase 1: Data Engineering | 🟡 In Progress | 75% |
+| Phase 1: Data Engineering | 🟡 In Progress | 90% |
 | Phase 2: Advanced Retrieval | ⏳ Pending | 0% |
 | Phase 3: Production LLM | ⏳ Pending | 0% |
 | Phase 4: Observability | ⏳ Pending | 0% |
@@ -104,7 +130,7 @@ None
 - **API**: FastAPI + Uvicorn
 - **DB**: PostgreSQL + Redis
 - **Evaluation**: RAGAS (LLM-as-judge) + Traditional IR metrics
-- **MLOps**: MLflow + DVC (pending)
+- **MLOps**: MLflow (Docker) + DVC (local/network remote) ✅
 - **Deployment**: Docker + Kubernetes (future)
 
 ---

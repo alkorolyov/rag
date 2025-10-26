@@ -93,4 +93,14 @@ class Settings(BaseSettings):
     # mlflow
     mlflow_tracking_uri: str
 
+    # huggingface datasets
+    hf_datasets_cache: str = ".cache"
+
 settings = Settings()
+
+# Auto-configure HuggingFace datasets cache with absolute path
+cache_path = Path(settings.hf_datasets_cache)
+if not cache_path.is_absolute():
+    cache_path = PROJECT_ROOT / cache_path
+cache_path = cache_path.resolve()  # Always resolve to absolute path
+os.environ['HF_DATASETS_CACHE'] = str(cache_path)
