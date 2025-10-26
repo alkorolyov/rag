@@ -1,0 +1,6 @@
+outs:
+- md5: c39757e3d41ea10164d47e0aeb7c3db3.dir
+  size: 1986380
+  nfiles: 3
+  hash: md5
+  path: rag-mini-bioasq-qrels
