@@ -19,18 +19,19 @@ services:
       test: pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
 
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack:latest
     container_name: rag-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
+      - "8001:8001"  # RedisInsight web UI
     volumes:
       - redis_data:/data
-    command: >
-      redis-server
-      -- appendonly ${REDIS_APPENDONLY}
-      -- maxmemory ${REDIS_MAXMEMORY}
-      -- maxmemory-policy ${REDIS_MAXMEMORY_POLICY}
+    environment:
+      REDIS_ARGS: >-
+        --appendonly ${REDIS_APPENDONLY}
+        --maxmemory ${REDIS_MAXMEMORY}
+        --maxmemory-policy ${REDIS_MAXMEMORY_POLICY}
     healthcheck:
       test: redis-cli ping
 

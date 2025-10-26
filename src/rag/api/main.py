@@ -36,7 +36,6 @@ async def lifespan(app: FastAPI):
 
     app.state.vec_store = create_vector_store(settings, app.state.embedder)
 
-
     app.state.rag_pipeline = RAGPipeline(
         app.state.doc_store,
         app.state.vec_store,

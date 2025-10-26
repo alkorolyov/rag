@@ -8,8 +8,8 @@ from rag.storage.base import (
     ChunkNotFoundError,
 )
 from rag.storage.models import Document, SearchResult, make_chunk_id, parse_chunk_id
-from rag.storage.document_stores import InMemoryDocumentStore
-from rag.storage.vector_stores import FAISSVectorStore
+from rag.storage.document_stores import InMemoryDocumentStore, PostgresDocumentStore
+from rag.storage.vector_stores import FAISSVectorStore, PgvectorVectorStore
 
 logger = setup_logger(__name__)
 
@@ -27,56 +27,60 @@ __all__ = [
     "parse_chunk_id",
     # Implementations
     "InMemoryDocumentStore",
+    "PostgresDocumentStore",
     "FAISSVectorStore",
+    "PgvectorVectorStore",
 ]
 
 def create_doc_store(settings: Settings) -> BaseDocumentStore:
     """
-    Create document store and auto-load from disk if path exists.
+    Create document store.
 
     Args:
-        settings: Settings object with doc_store type and path
+        settings: Settings object with doc_store type
 
     Returns:
-        Document store instance (loaded or empty)
+        Document store instance
     """
-    from pathlib import Path
-    from rag.config import PROJECT_ROOT
-
     if settings.doc_store == "inmemory":
-        store = InMemoryDocumentStore()
+        from pathlib import Path
+        from rag.config import PROJECT_ROOT
 
-        # Check if saved store exists and load it
+        store = InMemoryDocumentStore()
         store_path = PROJECT_ROOT / settings.doc_store_path
+
         if store_path.exists():
             logger.info(f"Loading document store from {store_path}")
             store.load(str(store_path))
-            logger.info(f"Loaded {len(store)} documents")
+            logger.info(f"Loaded {store.count_chunks()} chunks, {store.count_documents()} documents")
         else:
-            logger.info(f"Creating new empty document store (no file at {store_path})")
+            logger.info(f"Creating new empty document store")
 
         return store
 
-    raise ValueError(f"Unknown Document Store: {settings.doc_store}")
+    if settings.doc_store == "postgres":
+        store = PostgresDocumentStore(settings)
+        logger.info(f"Connected to PostgreSQL: {store.count_chunks()} chunks, {store.count_documents()} documents")
+        return store
 
-def create_vector_store(settings: Settings, embedder: BaseEmbedder) -> BaseVectorStore:
+    raise ValueError(f"Unknown doc_store: {settings.doc_store}")
+
+def create_vector_store(settings: Settings, embedder: BaseEmbedder = None) -> BaseVectorStore:
     """
-    Create vector store and auto-load from disk if path exists.
+    Create vector store.
 
     Args:
-        settings: Settings object with vec_store type, path, and embedding_dimension
+        settings: Settings object with vec_store type and embedding_dimension
         embedder: Embedder instance (unused, kept for backwards compatibility)
 
     Returns:
-        Vector store instance (loaded or empty)
+        Vector store instance
     """
-    from pathlib import Path
-    from rag.config import PROJECT_ROOT
-
     if settings.vec_store == "faiss":
-        store = FAISSVectorStore(settings.embedding_dimension)
+        from pathlib import Path
+        from rag.config import PROJECT_ROOT
 
-        # Check if saved store exists and load it
+        store = FAISSVectorStore(settings.embedding_dimension)
         store_path = PROJECT_ROOT / settings.vec_store_path
         index_file = Path(f"{store_path}.index")
 
@@ -85,10 +89,15 @@ def create_vector_store(settings: Settings, embedder: BaseEmbedder) -> BaseVecto
             store.load(str(store_path))
             logger.info(f"Loaded {store.count()} vectors")
         else:
-            logger.info(f"Creating new empty vector store (no file at {store_path})")
+            logger.info(f"Creating new empty vector store")
 
         return store
 
-    raise ValueError(f"Unknown Vector Store: {settings.vec_store}")
+    if settings.vec_store == "pgvector":
+        store = PgvectorVectorStore(settings)
+        logger.info(f"Connected to pgvector: {store.count()} vectors")
+        return store
+
+    raise ValueError(f"Unknown vec_store: {settings.vec_store}")
 
 

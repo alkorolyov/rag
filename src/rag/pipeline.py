@@ -1,4 +1,5 @@
-from rag.config import Settings
+from rag.caching.semantic import SemanticCache
+from rag.config import Settings, settings
 from rag.embeddings import BaseEmbedder
 from rag.generation.base import BaseLLM
 from rag.prompts import get_user_prompt, SYSTEM_PROMPT
@@ -16,33 +17,43 @@ class RAGPipeline:
         self.reranker = reranker
         self.llm = llm
         self.settings = settings
+        self.cache = SemanticCache(settings)
 
-    def query(self, question: str, k: int = 100, top_k: int = 5) -> tuple[str, list]:
+    def query(self, question: str) -> tuple[str, list]:
         """
         Query the RAG pipeline.
 
         Args:
             question: User's question
-            k: Number of initial results from vector search
-            top_k: Number of results to keep after reranking
 
         Returns:
             Tuple of (answer, source_documents)
         """
+        # 0. Check semantic cache
+        cached_data = self.cache.get(question)
+        if cached_data is not None:
+            answer = cached_data["answer"]
+            chunk_ids = cached_data["doc_ids"]
+
+            # Re-fetch documents from store to provide sources
+            reranked_chunks = [self.doc_store.get_chunk(doc_id) for doc_id in chunk_ids]
+
+            return answer, reranked_chunks
+
         # 1. Embed query
         q_emb = self.embedder.embed_text(question)
 
         # 2. Vector search
-        search_results = self.vector_store.search(q_emb, k)
+        search_results = self.vector_store.search(q_emb, settings.k)
 
         # 3. Retrieve full documents
-        initial_docs = [self.doc_store.get_by_id(r.chunk_id) for r in search_results]
+        chunks = [self.doc_store.get_chunk(r.chunk_id) for r in search_results]
 
         # 4. Rerank and take top_k
-        reranked_docs = self.reranker.rerank(question, initial_docs)[:top_k]
+        reranked_chunks = self.reranker.rerank(question, chunks)[:settings.top_k]
 
         # 5. Format prompt
-        prompt = get_user_prompt(question, reranked_docs)
+        prompt = get_user_prompt(question, reranked_chunks)
 
         # 6. Generate answer
         answer = self.llm.generate(
@@ -52,7 +63,11 @@ class RAGPipeline:
             temperature=self.settings.llm_temperature,
         )
 
-        return answer, reranked_docs
+        # 7. Store in cache with document IDs
+        chunk_ids = [c.id for c in reranked_chunks]
+        self.cache.set(question, answer, chunk_ids)
+
+        return answer, reranked_chunks
 
 
 

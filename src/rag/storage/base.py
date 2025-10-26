@@ -22,30 +22,74 @@ class BaseDocumentStore(ABC):
     Abstract base class for document storage.
 
     DocumentStore is responsible for storing and retrieving document chunks
-    with their full text content and metadata. It is the source of truth for
+    with their full text content and meta. It is the source of truth for
     document data, separate from vector embeddings.
     """
 
+    # ===== Write Operations =====
     @abstractmethod
-    def add(self, documents: List[Document]) -> List[str]:
+    def add_documents(self, documents: List[Document]) -> List[str]:
         """
-        Add documents to the store.
+        Add parent documents to the store.
 
         Args:
-            documents: List of Document objects to add
+            documents: List of parent Document objects (doc_type="parent")
+
+        Returns:
+            List of document IDs that were added
+
+        Raises:
+            ValueError: If documents are invalid or not parent type
+        """
+        pass
+
+    @abstractmethod
+    def add_chunks(self, chunks: List[Document]) -> List[str]:
+        """
+        Add document chunks to the store.
+
+        Args:
+            chunks: List of chunk Document objects (doc_type="chunk")
 
         Returns:
             List of chunk IDs that were added
 
         Raises:
-            ValueError: If documents are invalid
+            ValueError: If chunks are invalid or not chunk type
         """
         pass
 
     @abstractmethod
-    def get_by_id(self, chunk_id: str) -> Document:
+    def delete_chunks(self, chunk_ids: List[str]) -> None:
         """
-        Get a single document by chunk ID.
+        Delete chunks by IDs.
+
+        Args:
+            chunk_ids: List of chunk identifiers to delete
+
+        Raises:
+            ChunkNotFoundError: If any chunk_id does not exist
+        """
+        pass
+
+    @abstractmethod
+    def delete_document(self, doc_id: str) -> None:
+        """
+        Delete parent document and all its chunks.
+
+        Args:
+            doc_id: Parent document identifier
+
+        Raises:
+            DocumentNotFoundError: If document does not exist
+        """
+        pass
+
+    # ===== Read Operations - Chunks =====
+    @abstractmethod
+    def get_chunk(self, chunk_id: str) -> Document:
+        """
+        Get single chunk by ID.
 
         Args:
             chunk_id: The chunk identifier
@@ -59,9 +103,9 @@ class BaseDocumentStore(ABC):
         pass
 
     @abstractmethod
-    def get_by_ids(self, chunk_ids: List[str]) -> List[Document]:
+    def get_chunks(self, chunk_ids: List[str]) -> List[Document]:
         """
-        Get multiple documents by chunk IDs.
+        Get multiple chunks by IDs (preserves order).
 
         This method is lenient and skips missing chunk IDs without raising
         an exception. Use this for batch retrieval after vector search.
@@ -70,12 +114,12 @@ class BaseDocumentStore(ABC):
             chunk_ids: List of chunk identifiers
 
         Returns:
-            List of found Document objects (may be shorter than input if some missing)
+            List of found Document objects in same order as input
         """
         pass
 
     @abstractmethod
-    def get_by_doc_id(self, doc_id: str | int) -> List[Document]:
+    def get_document_chunks(self, doc_id: str) -> List[Document]:
         """
         Get all chunks belonging to a parent document.
 
@@ -83,34 +127,17 @@ class BaseDocumentStore(ABC):
             doc_id: The parent document identifier
 
         Returns:
-            List of Document chunks (empty list if none found)
+            List of Document chunks sorted by chunk index
         """
         pass
 
     @abstractmethod
-    def get_parent_document(self, doc_id: str | int) -> Optional[Document]:
+    def filter_chunks(self, filters: Dict[str, Any]) -> List[Document]:
         """
-        Get the parent document (full document, not a chunk).
+        Filter chunks by metadata fields.
 
         Args:
-            doc_id: The parent document identifier (without '#' symbol)
-
-        Returns:
-            The parent Document object, or None if not found
-
-        Note:
-            This retrieves documents with doc_type="parent" in metadata
-            or documents whose ID doesn't contain '#' symbol.
-        """
-        pass
-
-    @abstractmethod
-    def filter_by_metadata(self, filters: Dict[str, Any]) -> List[Document]:
-        """
-        Filter documents by metadata fields.
-
-        Args:
-            filters: Dictionary of metadata field filters
+            filters: Dictionary of meta field filters
                     Example: {"year": 2023, "source": "pubmed"}
 
         Returns:
@@ -119,72 +146,77 @@ class BaseDocumentStore(ABC):
         pass
 
     @abstractmethod
-    def delete(self, chunk_ids: List[str]) -> None:
+    def iter_chunks(self, batch_size: int = 100):
         """
-        Delete documents by chunk IDs.
+        Iterate over all chunks in batches (generator).
 
         Args:
-            chunk_ids: List of chunk identifiers to delete
-
-        Raises:
-            ChunkNotFoundError: If any chunk_id does not exist
-        """
-        pass
-
-    @abstractmethod
-    def count(self) -> int:
-        """
-        Get the total number of documents in the store.
-
-        Returns:
-            Number of documents
-        """
-        pass
-
-    @abstractmethod
-    def __iter__(self):
-        """
-        Iterate over all documents in the store.
+            batch_size: Number of chunks to yield per batch
 
         Yields:
-            Document objects
-
-        Example:
-            for doc in doc_store:
-                print(doc.id, doc.text[:50])
+            Document objects in batches
         """
         pass
 
     @abstractmethod
-    def __getitem__(self, index: int) -> Document:
+    def get_chunks_paginated(self, offset: int = 0, limit: int = 100) -> List[Document]:
         """
-        Get document by sequential integer index.
+        Get chunks with pagination (single DB query).
 
         Args:
-            index: Integer index (0-based)
+            offset: Number of chunks to skip
+            limit: Maximum number of chunks to return
 
         Returns:
-            Document at the given index
+            List of Document objects
+        """
+        pass
 
-        Raises:
-            IndexError: If index is out of range
+    # ===== Read Operations - Documents =====
+    @abstractmethod
+    def get_document(self, doc_id: str) -> Optional[Document]:
+        """
+        Get parent document by ID.
 
-        Example:
-            doc = doc_store[0]  # Get first document
-            doc = doc_store[-1]  # Get last document
+        Args:
+            doc_id: The parent document identifier
+
+        Returns:
+            The parent Document object, or None if not found
         """
         pass
 
     @abstractmethod
-    def __len__(self) -> int:
+    def get_documents(self, doc_ids: List[str]) -> List[Document]:
         """
-        Get the total number of documents (same as count()).
+        Get multiple parent documents by IDs.
+
+        Args:
+            doc_ids: List of parent document identifiers
 
         Returns:
-            Number of documents
+            List of found parent Documents (skips missing)
+        """
+        pass
 
-        Example:
-            length = len(doc_store)
+    # ===== Stats =====
+    @abstractmethod
+    def count_chunks(self) -> int:
+        """
+        Get total number of chunks in the store.
+
+        Returns:
+            Number of chunks
+        """
+        pass
+
+    @abstractmethod
+    def count_documents(self) -> int:
+        """
+        Get total number of parent documents in the store.
+
+        Returns:
+            Number of parent documents
         """
         pass
 
@@ -226,7 +258,7 @@ class BaseVectorStore(ABC):
         Args:
             query_embedding: Query vector of shape (dimension,) or (1, dimension)
             k: Number of results to return
-            filters: Optional metadata filters (if supported by implementation)
+            filters: Optional meta filters (if supported by implementation)
 
         Returns:
             List of SearchResult objects sorted by score (highest first)

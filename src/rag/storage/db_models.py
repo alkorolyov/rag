@@ -13,7 +13,7 @@ class DocumentModel(Base):
     __tablename__ = 'documents'
 
     id = Column(String, primary_key=True)
-    content = Column(Text, nullable=False)
+    text = Column(Text, nullable=False)
     meta = Column(JSONB, default={})
     created_at = Column(DateTime, nullable=False, default=lambda: dt.datetime.now(dt.UTC))
 
@@ -32,7 +32,7 @@ class ChunkModel(Base):
     id = Column(String, primary_key=True)
     doc_id = Column(String, ForeignKey('documents.id'))
     chunk_id = Column(Integer, nullable=False)
-    content = Column(Text, nullable=False)
+    text = Column(Text, nullable=False)
     embedding = Column(Vector(settings.embedding_dimension))
     meta = Column(JSONB, default={})
     created_at = Column(DateTime, nullable=False, default=lambda: dt.datetime.now(dt.UTC))

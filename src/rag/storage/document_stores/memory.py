@@ -1,268 +1,178 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-from rag.storage.base import BaseDocumentStore, ChunkNotFoundError
+from rag.storage.base import BaseDocumentStore, ChunkNotFoundError, DocumentNotFoundError
 from rag.storage.models import Document, parse_chunk_id
 
 
 class InMemoryDocumentStore(BaseDocumentStore):
     """
-    Simple in-memory document store using a dictionary.
+    Simple in-memory document store using dictionaries.
 
-    This implementation stores documents in a Python dict and is suitable for:
-    - Prototyping and development
-    - Small to medium datasets (up to ~100K documents)
-    - Testing
-
-    For production with large datasets, consider PostgreSQL or other persistent stores.
+    Stores parent documents and chunks separately for clarity.
+    Suitable for prototyping, development, and testing.
     """
 
     def __init__(self):
-        """Initialize an empty in-memory document store."""
-        self._store: Dict[str, Document] = {}
+        """Initialize empty in-memory stores."""
+        self._documents: Dict[str, Document] = {}  # Parent documents
+        self._chunks: Dict[str, Document] = {}      # Chunks
 
-    def add(self, documents: List[Document]) -> List[str]:
-        """
-        Add documents to the store.
-
-        Args:
-            documents: List of Document objects to add
-
-        Returns:
-            List of chunk IDs that were added
-
-        Raises:
-            ValueError: If documents list is empty or contains invalid documents
-        """
+    # ===== Write Operations =====
+    def add_documents(self, documents: List[Document]) -> List[str]:
+        """Add parent documents."""
         if not documents:
-            raise ValueError("Cannot add empty documents list")
+            return []
+
+        # Business logic validation only
+        invalid = [d.id for d in documents if d.doc_type != "parent"]
+        if invalid:
+            raise ValueError(f"Documents must have doc_type='parent': {invalid}")
+
+        doc_ids = []
+        for doc in documents:
+            doc_id = str(doc.id)
+            self._documents[doc_id] = doc
+            doc_ids.append(doc_id)
+
+        return doc_ids
+
+    def add_chunks(self, chunks: List[Document]) -> List[str]:
+        """Add document chunks."""
+        if not chunks:
+            return []
+
+        # Business logic validation only
+        invalid = [c.id for c in chunks if c.doc_type != "chunk"]
+        if invalid:
+            raise ValueError(f"Chunks must have doc_type='chunk': {invalid}")
 
         chunk_ids = []
-        for doc in documents:
-            if not doc.id:
-                raise ValueError("Document must have an id")
-            if not doc.text:
-                raise ValueError(f"Document {doc.id} must have text content")
-
-            chunk_id = str(doc.id)
-            self._store[chunk_id] = doc
+        for chunk in chunks:
+            chunk_id = str(chunk.id)
+            self._chunks[chunk_id] = chunk
             chunk_ids.append(chunk_id)
 
         return chunk_ids
 
-    def get_by_id(self, chunk_id: str) -> Document:
-        """
-        Get a single document by chunk ID.
+    def delete_chunks(self, chunk_ids: List[str]) -> None:
+        """Delete chunks by IDs (idempotent - no error if some don't exist)."""
+        if not chunk_ids:
+            return
 
-        Args:
-            chunk_id: The chunk identifier
-
-        Returns:
-            The Document object
-
-        Raises:
-            ChunkNotFoundError: If chunk_id does not exist
-        """
-        if chunk_id not in self._store:
-            raise ChunkNotFoundError(f"Chunk not found: {chunk_id}")
-        return self._store[chunk_id]
-
-    def get_by_ids(self, chunk_ids: List[str]) -> List[Document]:
-        """
-        Get multiple documents by chunk IDs.
-
-        This method is lenient and skips missing chunk IDs without raising
-        an exception. The order of returned documents matches the input order.
-
-        Args:
-            chunk_ids: List of chunk identifiers
-
-        Returns:
-            List of found Document objects (may be shorter than input if some missing)
-        """
-        documents = []
         for chunk_id in chunk_ids:
-            if chunk_id in self._store:
-                documents.append(self._store[chunk_id])
-        return documents
+            self._chunks.pop(chunk_id, None)
 
-    def get_by_doc_id(self, doc_id: str | int) -> List[Document]:
-        """
-        Get all chunks belonging to a parent document.
+    def delete_document(self, doc_id: str) -> None:
+        """Delete parent document and all its chunks (idempotent)."""
+        doc_id = str(doc_id)
 
-        This searches for chunks whose ID starts with "{doc_id}#" pattern.
+        # Delete parent
+        self._documents.pop(doc_id, None)
 
-        Args:
-            doc_id: The parent document identifier
+        # Delete all chunks
+        chunks_to_delete = [
+            chunk_id for chunk_id in list(self._chunks.keys())
+            if chunk_id.startswith(f"{doc_id}#")
+        ]
+        for chunk_id in chunks_to_delete:
+            del self._chunks[chunk_id]
 
-        Returns:
-            List of Document chunks sorted by chunk index (empty list if none found)
-        """
+    # ===== Read Operations - Chunks =====
+    def get_chunk(self, chunk_id: str) -> Document:
+        """Get single chunk by ID. Raises ChunkNotFoundError if not found."""
+        if chunk_id not in self._chunks:
+            raise ChunkNotFoundError(f"Chunk not found: {chunk_id}")
+        return self._chunks[chunk_id]
+
+    def get_chunks(self, chunk_ids: List[str]) -> List[Document]:
+        """Get multiple chunks."""
+        return [self._chunks[cid] for cid in chunk_ids if cid in self._chunks]
+
+    def get_document_chunks(self, doc_id: str) -> List[Document]:
+        """Get all chunks for a document."""
         doc_id_str = str(doc_id)
         matching_docs = []
 
-        for chunk_id, doc in self._store.items():
+        for chunk_id, chunk in self._chunks.items():
             try:
                 parsed_doc_id, chunk_index = parse_chunk_id(chunk_id)
                 if parsed_doc_id == doc_id_str:
-                    matching_docs.append((chunk_index, doc))
+                    matching_docs.append((chunk_index, chunk))
             except ValueError:
-                # Not in chunk_id format, check if it matches directly
                 if chunk_id.startswith(f"{doc_id_str}#"):
-                    matching_docs.append((0, doc))
+                    matching_docs.append((0, chunk))
 
-        # Sort by chunk index
         matching_docs.sort(key=lambda x: x[0])
         return [doc for _, doc in matching_docs]
 
-    def get_parent_document(self, doc_id: str | int) -> Document | None:
-        """
-        Get the parent document (full document, not a chunk).
-
-        Args:
-            doc_id: The parent document identifier (without '#' symbol)
-
-        Returns:
-            The parent Document object, or None if not found
-        """
-        doc_id_str = str(doc_id)
-
-        # Try direct lookup
-        if doc_id_str in self._store:
-            doc = self._store[doc_id_str]
-            # Verify it's a parent (no '#' in ID)
-            if "#" not in str(doc.id):
-                return doc
-
-        return None
-
-    def filter_by_metadata(self, filters: Dict[str, Any]) -> List[Document]:
-        """
-        Filter documents by metadata fields.
-
-        Performs exact matching on metadata fields. All filter conditions
-        must match (AND logic).
-
-        Args:
-            filters: Dictionary of metadata field filters
-                    Example: {"year": 2023, "source": "pubmed"}
-
-        Returns:
-            List of matching Documents (empty list if none match)
-        """
+    def filter_chunks(self, filters: Dict[str, Any]) -> List[Document]:
+        """Filter chunks by metadata."""
         if not filters:
-            return list(self._store.values())
+            return list(self._chunks.values())
 
-        matching_docs = []
-        for doc in self._store.values():
-            # Check if all filter conditions match
+        matching = []
+        for chunk in self._chunks.values():
             if all(
-                key in doc.metadata and doc.metadata[key] == value
+                key in chunk.meta and chunk.meta[key] == value
                 for key, value in filters.items()
             ):
-                matching_docs.append(doc)
+                matching.append(chunk)
+        return matching
 
-        return matching_docs
+    def iter_chunks(self, batch_size: int = 100):
+        """Iterate over batches of chunks."""
+        chunks = list(self._chunks.values())
+        for i in range(0, len(chunks), batch_size):
+            yield chunks[i:i + batch_size]
 
-    def delete(self, chunk_ids: List[str]) -> None:
-        """
-        Delete documents by chunk IDs.
+    def get_chunks_paginated(self, offset: int = 0, limit: int = 100) -> List[Document]:
+        """Get chunks with pagination."""
+        chunks = list(self._chunks.values())
+        return chunks[offset:offset + limit]
 
-        Args:
-            chunk_ids: List of chunk identifiers to delete
+    # ===== Read Operations - Documents =====
+    def get_document(self, doc_id: str) -> Optional[Document]:
+        """Get parent document."""
+        return self._documents.get(str(doc_id))
 
-        Raises:
-            ChunkNotFoundError: If any chunk_id does not exist
-        """
-        # First check all exist
-        missing = [cid for cid in chunk_ids if cid not in self._store]
-        if missing:
-            raise ChunkNotFoundError(
-                f"Cannot delete: chunks not found: {missing}"
-            )
+    def get_documents(self, doc_ids: List[str]) -> List[Document]:
+        """Get multiple parent documents."""
+        return [self._documents[str(did)] for did in doc_ids if str(did) in self._documents]
 
-        # Delete all
-        for chunk_id in chunk_ids:
-            del self._store[chunk_id]
+    # ===== Stats =====
+    def count_chunks(self) -> int:
+        """Total chunks."""
+        return len(self._chunks)
 
-    def count(self) -> int:
-        """
-        Get the total number of documents in the store.
+    def count_documents(self) -> int:
+        """Total parent documents."""
+        return len(self._documents)
 
-        Returns:
-            Number of documents
-        """
-        return len(self._store)
-
-    def __iter__(self):
-        """
-        Iterate over all documents in the store.
-
-        Yields:
-            Document objects in insertion order
-        """
-        return iter(self._store.values())
-
-    def __getitem__(self, index: int) -> Document:
-        """
-        Get document by sequential integer index.
-
-        Args:
-            index: Integer index (0-based), supports negative indexing
-
-        Returns:
-            Document at the given index
-
-        Raises:
-            IndexError: If index is out of range
-        """
-        docs_list = list(self._store.values())
-        try:
-            return docs_list[index]
-        except IndexError:
-            raise IndexError(f"Index {index} out of range for store with {len(docs_list)} documents")
-
-    def __len__(self) -> int:
-        """
-        Get the total number of documents (same as count()).
-
-        Returns:
-            Number of documents
-        """
-        return len(self._store)
-
+    # ===== Persistence =====
     def save(self, path: str) -> None:
-        """
-        Save the document store to disk using pickle.
-
-        Args:
-            path: File path to save to (e.g., "data/doc_store.pkl")
-        """
+        """Save to disk."""
         from pathlib import Path
         import pickle
 
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-
         with open(path, "wb") as f:
-            pickle.dump(self._store, f)
+            pickle.dump({"documents": self._documents, "chunks": self._chunks}, f)
 
     def load(self, path: str) -> None:
-        """
-        Load the document store from disk.
-
-        Args:
-            path: File path to load from
-
-        Raises:
-            FileNotFoundError: If file does not exist
-        """
+        """Load from disk."""
         from pathlib import Path
         import pickle
 
         if not Path(path).exists():
-            raise FileNotFoundError(f"Document store file not found: {path}")
+            raise FileNotFoundError(f"File not found: {path}")
 
         with open(path, "rb") as f:
-            self._store = pickle.load(f)
+            data = pickle.load(f)
+            self._documents = data["documents"]
+            self._chunks = data["chunks"]
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(count={self.count()})"
+        return (
+            f"{self.__class__.__name__}("
+            f"documents={self.count_documents()}, chunks={self.count_chunks()})"
+        )

@@ -17,8 +17,6 @@ class EmbedResponse(BaseModel):
 
 class QueryRequest(BaseModel):
     question: str
-    k: int = 100  # Number of initial results from vector search
-    top_k: int = 5  # Number of results after reranking
 
 class SourceDocument(BaseModel):
     doc_id: str

@@ -1,9 +1,9 @@
 # Project Status
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2025-10-26
 **Phase**: Phase 1 - Data Engineering
 **Completion**: Phase 0 Complete (100%)
-**Next Milestone**: PostgreSQL + pgvector Integration
+**Next Milestone**: DVC + MLflow Setup
 
 ---
 
@@ -18,11 +18,13 @@
 ### Core RAG Modules
 - **Embeddings**: BaseEmbedder, LocalEmbedder (sentence-transformers)
   - Centralized dimension configuration via settings
+- **Caching**: SemanticCache (langchain-redis), EmbeddingCache
 - **Storage**:
-  - BaseDocumentStore, InMemoryDocumentStore (with save/load)
-  - BaseVectorStore, FAISSVectorStore (with save/load)
+  - BaseDocumentStore: InMemoryDocumentStore, PostgresDocumentStore ✅
+  - BaseVectorStore: FAISSVectorStore, PgvectorVectorStore ✅
   - Document model with metadata support
   - SQLAlchemy models (DocumentModel, ChunkModel) with pgvector support
+  - Clean API: add_documents(), add_chunks(), get_chunk(), get_chunks(), iter_chunks()
 - **LLM**: BaseLLM, LocalLLM (Qwen/Qwen2.5-7B-Instruct)
 - **Chunking**: BaseChunker, RecursiveChunker (token-aware)
 - **Reranking**: BaseReranker, CrossEncoderReranker
@@ -40,25 +42,37 @@
 - **`POST /embed`** - Text embedding endpoint
 - **`POST /query`** - RAG query endpoint (full pipeline)
 
-### Evaluation
-- Notebooks with bioasq-mini dataset
-- Comparison experiments (embedders, chunking, rerankers)
-- Full pipeline testing notebook
-- Utility functions (get_metrics, embed_dataset, batched)
+### Evaluation & Metrics
+- **Traditional IR Metrics**: evaluate_retrieval() in utils.py
+  - Precision@k, Recall@k, MRR@k, NDCG@k, Hit@k
+  - Proper deduplication for accurate metrics
+- **RAGAS Framework**: 12_ragas_metrics.ipynb ✅
+  - LLM-as-judge metrics (faithfulness, answer_relevancy, answer_correctness)
+  - OpenAI GPT-4o-mini with parallel execution (8 workers)
+  - Redis caching for LLM calls (7-day TTL)
+  - Random sampling with seed for reproducibility
+- **Benchmark Results** (100 random samples, deduplicated):
+  - IR: P@10=0.346, R@10=0.341, MRR@10=0.612, Hit@10=0.97
+  - RAGAS: faithfulness=0.89, answer_relevancy=0.87, answer_correctness=0.62
+- **Notebooks**: bioasq-mini dataset experiments
+  - Embedder comparisons (08_reranker.ipynb with deduplication)
+  - Chunking strategies, reranker testing
+  - Full pipeline evaluation (09_full_pipeline.ipynb)
 
 ---
 
 ## 🎯 Next Actions
 
-1. **PostgreSQL Integration** - Complete database setup
-   - ✅ Generate initial Alembic migration
-   - ✅ Run migration to create tables
-   - 🟡 Implement PostgresDocumentStore (in progress)
-   - Implement PgvectorVectorStore
-2. **Redis Caching** - Add caching layer for embeddings and queries
-3. **DVC Setup** - Initialize data versioning for datasets and models
-4. **MLflow Setup** - Experiment tracking and model registry
-5. **Unit Tests** - Core module testing (embeddings, storage, retrieval)
+1. **PostgreSQL Integration** - ✅ COMPLETED!
+2. **Redis Caching** - ✅ COMPLETED!
+3. **RAGAS Evaluation** - ✅ COMPLETED!
+   - ✅ Traditional IR metrics (evaluate_retrieval in utils.py)
+   - ✅ LLM-as-judge metrics (faithfulness, relevancy, correctness)
+   - ✅ Redis caching for LLM calls
+   - ✅ Deduplication fixes in evaluation notebooks
+4. **DVC Setup** - Initialize data versioning for datasets and models
+5. **MLflow Setup** - Experiment tracking and model registry
+6. **Unit Tests** - Core module testing (embeddings, storage, retrieval)
 
 ---
 
@@ -73,7 +87,7 @@ None
 | Phase | Status | Progress |
 |-------|--------|----------|
 | Phase 0: Foundation | ✅ Complete | 100% |
-| Phase 1: Data Engineering | 🟡 In Progress | 35% |
+| Phase 1: Data Engineering | 🟡 In Progress | 75% |
 | Phase 2: Advanced Retrieval | ⏳ Pending | 0% |
 | Phase 3: Production LLM | ⏳ Pending | 0% |
 | Phase 4: Observability | ⏳ Pending | 0% |
@@ -84,11 +98,12 @@ None
 
 ## 🔑 Key Tech Stack
 
-- **Embeddings**: sentence-transformers (local models)
+- **Embeddings**: sentence-transformers (BAAI/bge-small-en-v1.5)
 - **Vector DB**: FAISS (dev) → pgvector (production)
 - **LLM**: Qwen/Qwen2.5-7B-Instruct (local)
 - **API**: FastAPI + Uvicorn
 - **DB**: PostgreSQL + Redis
+- **Evaluation**: RAGAS (LLM-as-judge) + Traditional IR metrics
 - **MLOps**: MLflow + DVC (pending)
 - **Deployment**: Docker + Kubernetes (future)
 

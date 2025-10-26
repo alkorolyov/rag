@@ -15,7 +15,7 @@ class BaseChunker(ABC):
     def chunk_text(
             self,
             text: str,
-            metadata: Optional[Dict[str, Any]] = None
+            meta: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         ...
 
@@ -25,7 +25,7 @@ class BaseChunker(ABC):
             dataset: Dataset,
             text_col: str = "text",
             id_col: str = "id",
-            metadata: Optional[Dict[str, Any]] = None,
+            meta: Optional[Dict[str, Any]] = None,
     ):
         ...
 

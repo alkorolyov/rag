@@ -55,7 +55,7 @@ class LocalEmbedder(BaseEmbedder):
             >>> vector.shape
             (384,)
         """
-        result = self.model.encode(text, normalize_embeddings=True)
+        result = self.model.encode(text, normalize_embeddings=True, show_progress_bar=False)
         return result
 
     def embed_batch(self, batch: List[str], batch_size: int = 32) -> NDArray[np.float32]:
@@ -78,7 +78,7 @@ class LocalEmbedder(BaseEmbedder):
             >>> vectors.shape
             (2, 384)
         """
-        result = self.model.encode(batch, normalize_embeddings=True, batch_size=batch_size)
+        result = self.model.encode(batch, normalize_embeddings=True, batch_size=batch_size, show_progress_bar=False)
         return result
 
     @property

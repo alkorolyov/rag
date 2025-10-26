@@ -21,7 +21,7 @@ class CrossEncoderReranker(BaseReranker):
 
     def rerank(self, query: str, documents: List[Document], batch_size: int = 32) -> List[Document]:
         pairs = [[query, doc.text] for doc in documents]
-        scores = self.model.predict(pairs, batch_size)
+        scores = self.model.predict(pairs, batch_size=batch_size, show_progress_bar=False)
 
         for doc, score in zip(documents, scores):
             doc.score = float(score)

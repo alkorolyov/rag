@@ -44,6 +44,8 @@ class Settings(BaseSettings):
 
     # redis
     redis_url: str
+    redis_ttl: int
+    redis_semantic_distance: float
     redis_appendonly: bool
     redis_maxmemory: str
     redis_maxmemory_policy: str

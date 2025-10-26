@@ -114,13 +114,13 @@ class FAISSVectorStore(BaseVectorStore):
         Args:
             query_embedding: Query vector of shape (dimension,) or (1, dimension)
             k: Number of results to return
-            filters: Optional metadata filters (not supported by FAISS, ignored)
+            filters: Optional meta filters (not supported by FAISS, ignored)
 
         Returns:
             List of SearchResult objects sorted by score (highest first)
 
         Note:
-            FAISS does not support native metadata filtering. For filtered search,
+            FAISS does not support native meta filtering. For filtered search,
             retrieve more results (e.g., k*10) and filter in DocumentStore.
         """
         # Ensure query is 2D
@@ -156,7 +156,7 @@ class FAISSVectorStore(BaseVectorStore):
                 SearchResult(
                     chunk_id=chunk_id,
                     score=float(distance),
-                    metadata=None
+                    meta=None
                 )
             )
 
@@ -164,30 +164,28 @@ class FAISSVectorStore(BaseVectorStore):
 
     def delete(self, chunk_ids: List[str]) -> None:
         """
-        Delete vectors by chunk IDs.
+        Delete vectors by chunk IDs (idempotent - no error if some don't exist).
 
         Args:
             chunk_ids: List of chunk identifiers to delete
-
-        Raises:
-            ChunkNotFoundError: If any chunk_id does not exist
         """
-        # Check all exist
-        missing = [cid for cid in chunk_ids if cid not in self._chunk_id_to_faiss]
-        if missing:
-            raise ChunkNotFoundError(
-                f"Cannot delete: chunks not found: {missing}"
-            )
+        if not chunk_ids:
+            return
+
+        # Filter to only existing chunks
+        existing_chunks = [cid for cid in chunk_ids if cid in self._chunk_id_to_faiss]
+        if not existing_chunks:
+            return
 
         # Get FAISS IDs
-        faiss_ids = [self._chunk_id_to_faiss[cid] for cid in chunk_ids]
+        faiss_ids = [self._chunk_id_to_faiss[cid] for cid in existing_chunks]
 
         # Remove from FAISS index
         faiss_ids_selector = faiss.IDSelectorArray(np.array(faiss_ids, dtype=np.int64))
         self.index.remove_ids(faiss_ids_selector)
 
         # Update mappings
-        for chunk_id, faiss_id in zip(chunk_ids, faiss_ids):
+        for chunk_id, faiss_id in zip(existing_chunks, faiss_ids):
             del self._chunk_id_to_faiss[chunk_id]
             del self._faiss_to_chunk_id[faiss_id]
 

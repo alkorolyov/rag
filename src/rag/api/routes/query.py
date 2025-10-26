@@ -23,8 +23,6 @@ async def query(
     # Get answer and source documents from pipeline
     answer, sources = rag_pipeline.query(
         question=request.question,
-        k=request.k,
-        top_k=request.top_k
     )
 
     # Format source documents

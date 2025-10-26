@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class Document(BaseModel):
     """
-    Represents a document or document chunk with metadata.
+    Represents a document or document chunk with meta.
 
     Attributes:
         id: Unique identifier
@@ -13,14 +13,14 @@ class Document(BaseModel):
             - For chunks: "pubmed_12345678#0" (includes '#' and chunk index)
         text: The text content (full document or chunk)
         score: Relevance score (used after retrieval/reranking)
-        metadata: Additional metadata (e.g., source, date, parent_id)
+        meta: Additional metadata (e.g., source, date, parent_id)
         doc_type: Type of document - "parent" (full) or "chunk" (fragment)
     """
     id: str | int
     text: str
     score: float = 0.0
     doc_type: Literal["parent", "chunk"]
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    meta: dict[str, Any] = Field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -36,11 +36,11 @@ class SearchResult(BaseModel):
     Attributes:
         chunk_id: The chunk identifier
         score: Similarity score from vector search
-        metadata: Optional metadata (for filtered search)
+        meta: Optional meta (for filtered search)
     """
     chunk_id: str
     score: float
-    metadata: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
 
 
 # Chunk ID utilities
