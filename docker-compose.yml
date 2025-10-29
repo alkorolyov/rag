@@ -19,7 +19,7 @@ services:
       test: pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
 
   redis:
-    image: redis/redis-stack:latest
+    image: redis/redis-stack:7.2.0-v19-x86_64
     container_name: rag-redis
     restart: unless-stopped
     ports:
@@ -36,7 +36,7 @@ services:
       test: redis-cli ping
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:latest
+    image: ghcr.io/mlflow/mlflow:v3.5.1
     container_name: rag-mlflow
     restart: unless-stopped
     ports:
@@ -50,7 +50,23 @@ services:
       --backend-store-uri file:///mlflow
       --default-artifact-root file:///mlflow/artifacts
     healthcheck:
-      test: curl -f http://localhost:5000/health || exit 1
+      test: curl -fsS http://localhost:5000/health || exit 1
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
+    container_name: rag-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: >
+      server /data
+      --address ":9000"
+      --console-address ":9001"
+    healthcheck:
+      test: curl -fsS http://localhost:9000/minio/health/ready || exit 1
 
 volumes:
   postgres_data:
@@ -58,6 +74,8 @@ volumes:
   redis_data:
     driver: local
   mlflow_data:
+    driver: local
+  minio_data:
     driver: local
 
 
