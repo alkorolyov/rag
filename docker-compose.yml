@@ -19,7 +19,7 @@ services:
       test: pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
 
   redis:
-    image: redis/redis-stack:7.2.0-v19-x86_64
+    image: redis/redis-stack:7.4.0-v7
     container_name: rag-redis
     restart: unless-stopped
     ports:
