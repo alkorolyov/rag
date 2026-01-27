@@ -1,42 +1,43 @@
+"""Query endpoint for RAG API."""
+
 from fastapi import APIRouter, Depends
 
-from rag.api.dependencies import get_rag_pipeline
+from rag.api.dependencies import get_retriever
 from rag.api.models import QueryRequest, QueryResponse, SourceDocument
-from rag.pipeline import RAGPipeline
+from rag.retrieval import HybridRetriever
 
 router = APIRouter()
 
-@router.post('/query')
+
+@router.post("/query")
 async def query(
-        request: QueryRequest,
-        rag_pipeline: RAGPipeline = Depends(get_rag_pipeline),
+    request: QueryRequest,
+    retriever: HybridRetriever = Depends(get_retriever),
 ) -> QueryResponse:
-    """
-    Query the RAG system with a question.
+    """Query the RAG system.
 
     Args:
-        request: QueryRequest with question and optional k/top_k params
+        request: QueryRequest with question
 
     Returns:
-        QueryResponse with answer and source documents
+        QueryResponse with retrieved sources (LLM generation can be added)
     """
-    # Get answer and source documents from pipeline
-    answer, sources = rag_pipeline.query(
-        question=request.question,
-    )
+    results = retriever.search(request.question, k=10)
 
-    # Format source documents
-    source_docs = [
+    sources = [
         SourceDocument(
-            doc_id=str(doc.id),
-            text=doc.text,
-            score=doc.score
+            doc_id=str(doc.metadata.get("doc_id", "")),
+            text=doc.page_content[:500],
+            score=doc.metadata.get("score", 0.0),
         )
-        for doc in sources
+        for doc in results
     ]
+
+    # Note: LLM generation can be added here via LangChain
+    answer = f"Retrieved {len(sources)} relevant documents. LLM generation not yet implemented."
 
     return QueryResponse(
         question=request.question,
         answer=answer,
-        sources=source_docs
+        sources=sources,
     )

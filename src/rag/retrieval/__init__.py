@@ -1,6 +1,11 @@
-from rag.config import Settings
-from rag.retrieval.reranker import CrossEncoderReranker, BaseReranker
+"""Retrieval components."""
 
+from rag.retrieval.reranker import BaseReranker, CrossEncoderReranker
+from rag.retrieval.hybrid import HybridRetriever, HybridConfig
 
-def create_reranker(settings: Settings) -> BaseReranker:
-    return CrossEncoderReranker(settings.reranker_model, device=settings.reranker_device)
+__all__ = [
+    "BaseReranker",
+    "CrossEncoderReranker",
+    "HybridRetriever",
+    "HybridConfig",
+]

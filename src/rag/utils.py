@@ -70,7 +70,7 @@ def ndcg_at_k(hit_flags: np.ndarray, qrels_counts) -> float:
 
 
 def get_hit_flags(retrieved_ids, qrels):
-    hit_flags = np.zeros_like(retrieved_ids, dtype=np.bool)
+    hit_flags = np.zeros_like(retrieved_ids, dtype=bool)
     for i in range(len(retrieved_ids)):
         hit_flags[i] = np.isin(retrieved_ids[i], qrels[i])
     return hit_flags

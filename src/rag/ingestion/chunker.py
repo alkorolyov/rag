@@ -1,99 +1,78 @@
+"""Text chunking utilities for document preprocessing."""
+
 from abc import ABC, abstractmethod
-from typing import Callable, Optional, Dict, Any, List
+from typing import List
 
 from datasets import Dataset, disable_progress_bar, enable_progress_bar
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter, SpacyTextSplitter
 from tqdm import tqdm
 
-from rag.embeddings import BaseEmbedder
-from rag.storage.models import Document, make_chunk_id
+from rag.models import make_chunk_id
 from rag.utils import get_token_counter
 
 
 class BaseChunker(ABC):
-    @abstractmethod
-    def chunk_text(
-            self,
-            text: str,
-            meta: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
-        ...
+    """Abstract base class for text chunkers."""
 
     @abstractmethod
-    def chunk_dataset(
-            self,
-            dataset: Dataset,
-            text_col: str = "text",
-            id_col: str = "id",
-            meta: Optional[Dict[str, Any]] = None,
-    ):
+    def chunk_text(self, text: str) -> List[str]:
+        """Split text into chunks."""
         ...
+
+    def chunk_dataset(
+        self,
+        dataset: Dataset,
+        text_col: str = "text",
+        id_col: str = "id",
+    ) -> Dataset:
+        """Chunk a HuggingFace Dataset."""
+
+        def chunk_generator():
+            for doc in tqdm(dataset, desc="Chunking"):
+                text = doc[text_col]
+                doc_id = doc[id_col]
+                chunks = self.chunk_text(text)
+                for i, chunk in enumerate(chunks):
+                    yield {
+                        "text": chunk,
+                        "doc_id": doc_id,
+                        "chunk_id": make_chunk_id(doc_id, i),
+                    }
+
+        disable_progress_bar()
+        result = Dataset.from_generator(chunk_generator)
+        enable_progress_bar()
+        return result
 
 
 class RecursiveChunker(BaseChunker):
+    """Token-aware recursive text chunker."""
+
     def __init__(self, chunk_size: int, chunk_overlap: int, embedder_model: str):
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-
         self.chunker = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             length_function=get_token_counter(embedder_model),
         )
 
-    def chunk_text(self, text: str, **kwargs) -> List[Dict[str, Any]]:
-        results = []
-        chunks = self.chunker.split_text(text)
-        for i, chunk in enumerate(chunks):
-            results.append({
-                "text": chunk,
-                "chunk_id": i,
-            })
-        return results
+    def chunk_text(self, text: str) -> List[str]:
+        return self.chunker.split_text(text)
 
-    def chunk_dataset(
-            self,
-            dataset: Dataset,
-            text_col: str = "text",
-            id_col: str = "id",
-            **kwargs,
-    ) -> Dataset:
-        def chunk_generator():
-            for doc in tqdm(dataset, desc='Chunking'):
-                text = doc[text_col]
-                doc_id = doc[id_col]
-                chunks = self.chunker.split_text(text)
-                for i, chunk in enumerate(chunks):
-                    yield {
-                        'text': chunk,
-                        'doc_id': doc_id,
-                        'chunk_id': make_chunk_id(doc_id, i),
-                    }
 
-        # Disable built-in progress bar
-        disable_progress_bar()
+class SentenceChunker(BaseChunker):
+    """Sentence-aware chunker using spaCy."""
 
-        result = Dataset.from_generator(
-            chunk_generator,
+    def __init__(self, chunk_size: int, chunk_overlap: int, embedder_model: str):
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.chunker = SpacyTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            length_function=get_token_counter(embedder_model),
+            pipeline="en_core_web_sm",
         )
 
-        # Re-enable for other operations
-        enable_progress_bar()
-        return result
-
-    def chunk_docs(self, docs: List[Document], text_col: str = "text", id_col: str = "id",) -> List[Dict[str, Any]]:
-        results = []
-        for doc in tqdm(docs, desc='Chunking'):
-            doc_id = doc[id_col]
-            chunks = self.chunker.split_text(doc[text_col])
-            for i, chunk in enumerate(chunks):
-                results.append({
-                    'text': chunk,
-                    'doc_id': doc_id,
-                    'chunk_id': make_chunk_id(doc_id, i),
-                })
-        return results
-
-
-
-
+    def chunk_text(self, text: str) -> List[str]:
+        return self.chunker.split_text(text)
