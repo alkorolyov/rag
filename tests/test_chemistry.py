@@ -5,13 +5,12 @@ import pytest
 from rag.chemistry import (
     validate_smiles,
     parse_smiles,
-    canonicalize_smiles,
-    smiles_to_inchi,
-    smiles_to_inchikey,
     MolecularSimilarity,
     SimilarityResult,
-    compute_similarity_matrix,
 )
+# Import non-exported functions directly for testing
+from rag.chemistry.parsers import canonicalize_smiles, smiles_to_inchi, smiles_to_inchikey
+from rag.chemistry.similarity import compute_similarity_matrix
 
 
 class TestParsers:
@@ -182,3 +181,110 @@ class TestSimilarityMatrix:
         matrix = compute_similarity_matrix(smiles)
         # Should still return matrix, invalid entries are 0
         assert len(matrix) == 3
+
+
+class TestSearchByTarget:
+    """Tests for ChEMBL target-based search.
+
+    Uses small targets for fast tests:
+    - PLK1 (~52 activities) - has T210D mutation
+    - Adenosine receptor A2a (~67 activities) - small protein target
+    - B-raf (~10k activities) - only for filtered tests (min_pchembl, min_phase)
+    """
+
+    @pytest.fixture(scope="class")
+    def chembl_db(self):
+        """Create ChEMBL database connection (shared across class)."""
+        from pathlib import Path
+        from rag.chemistry.chembl import ChEMBLDatabase
+
+        db_path = Path.home() / "data/chembl/chembl_36/chembl_36_sqlite/chembl_36.db"
+        if not db_path.exists():
+            pytest.skip(f"ChEMBL database not found at {db_path}")
+        db = ChEMBLDatabase(db_path)
+        yield db
+        db.close()
+
+    def test_search_by_target_basic(self, chembl_db):
+        """Test basic target search returns results (uses potency filter for speed)."""
+        from rag.chemistry.chembl import TargetActivityResult
+
+        # Use B-raf with potency filter - fast because filters early
+        results = chembl_db.search_by_target("B-raf", min_pchembl=7.0, limit=10)
+        assert len(results) > 0
+        assert all(isinstance(r, TargetActivityResult) for r in results)
+        assert all("B-RAF" in r.target_name.upper() for r in results if r.target_name)
+
+    def test_search_by_target_with_mutation(self, chembl_db):
+        """Test mutation filter (uses potency filter for speed)."""
+        # B-raf V600E with potency filter
+        results = chembl_db.search_by_target("B-raf", mutation="V600E", min_pchembl=6.0, limit=10)
+        assert len(results) > 0
+        assert all(r.mutation and "V600E" in r.mutation for r in results)
+
+    def test_search_by_target_approved_drugs(self, chembl_db):
+        """Test min_phase filter for approved drugs (fast - filters early)."""
+        # B-raf with min_phase=4 is fast because it filters early
+        results = chembl_db.search_by_target("B-raf", min_phase=4, limit=20)
+        assert len(results) > 0
+        assert all(r.max_phase is not None and r.max_phase >= 4 for r in results)
+        # Known BRAF inhibitors should appear
+        names = {r.compound_name.upper() for r in results if r.compound_name}
+        known_braf_drugs = {"VEMURAFENIB", "DABRAFENIB", "ENCORAFENIB"}
+        assert names & known_braf_drugs, f"Expected one of {known_braf_drugs} in {names}"
+
+    def test_search_by_target_activity_type(self, chembl_db):
+        """Test activity_type filter."""
+        # Use Adenosine receptor A2a - small target
+        results = chembl_db.search_by_target("Adenosine receptor A2a", activity_type="IC50", limit=10)
+        assert len(results) > 0
+        assert all(r.activity_type == "IC50" for r in results)
+
+    def test_search_by_target_potency_filter(self, chembl_db):
+        """Test min_pchembl filter (fast - filters early)."""
+        # B-raf with min_pchembl=8.0 is fast because it filters early
+        results = chembl_db.search_by_target("B-raf", min_pchembl=8.0, limit=10)
+        assert len(results) > 0
+        assert all(r.pchembl_value is not None and r.pchembl_value >= 8.0 for r in results)
+
+    def test_search_by_target_no_results(self, chembl_db):
+        """Test nonexistent target returns empty list."""
+        # Use potency filter to make the scan faster even for non-existent target
+        results = chembl_db.search_by_target("NONEXISTENT_TARGET_XYZ123", min_pchembl=9.0)
+        assert results == []
+
+    def test_search_by_target_deduplicate(self, chembl_db):
+        """Test deduplication returns unique compounds."""
+        # Use B-raf with filters for speed
+        results = chembl_db.search_by_target("B-raf", min_pchembl=7.0, deduplicate=True, limit=20)
+        ids = [r.compound_chembl_id for r in results]
+        assert len(ids) == len(set(ids)), "Deduplicated results should have unique compound IDs"
+
+    def test_search_by_target_herg_safety(self, chembl_db):
+        """Test hERG/KCNH2 search with potency filter (fast)."""
+        # KCNH2 with min_pchembl filter is fast
+        results = chembl_db.search_by_target("KCNH2", min_pchembl=7.0, limit=10)
+        assert len(results) > 0
+        assert all(r.pchembl_value >= 7.0 for r in results)
+
+    def test_search_by_target_result_fields(self, chembl_db):
+        """Test that all expected fields are populated."""
+        # Use B-raf with potency filter for speed
+        results = chembl_db.search_by_target("B-raf", min_pchembl=8.0, limit=5)
+        assert len(results) > 0
+
+        r = results[0]
+        # Required fields should be present
+        assert r.compound_chembl_id is not None
+        assert r.smiles is not None
+        assert r.activity_type is not None
+        assert r.target_name is not None
+        assert r.target_chembl_id is not None
+        assert r.pchembl_value is not None
+
+    def test_search_by_target_max_value_filter(self, chembl_db):
+        """Test max_value_nm filter."""
+        # B-raf with max_value + potency filter for speed
+        results = chembl_db.search_by_target("B-raf", max_value_nm=100.0, min_pchembl=7.0, limit=10)
+        assert len(results) > 0
+        assert all(r.standard_value is None or r.standard_value <= 100.0 for r in results)

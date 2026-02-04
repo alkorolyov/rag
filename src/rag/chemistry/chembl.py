@@ -23,12 +23,43 @@ class ActivityData:
 
     assay_chembl_id: str
     activity_type: str  # IC50, Ki, EC50, etc.
-    value: float | None
-    units: str | None
+    pchembl_value: float  # -log10(molar), comparable across activity types
+    standard_value: float | None  # Original value for reference
+    standard_units: str | None  # Original units (nM, uM, etc.)
     relation: str | None  # =, <, >, etc.
     target_name: str | None
     target_chembl_id: str | None
     target_type: str | None  # SINGLE PROTEIN, PROTEIN COMPLEX, etc.
+
+
+@dataclass
+class TargetActivityResult:
+    """Bioactivity data for a compound against a target.
+
+    Used for target-based searches (target → compounds).
+    """
+
+    # Compound info
+    compound_chembl_id: str
+    compound_name: str | None
+    smiles: str
+    max_phase: int | None  # 0-4, None if unknown
+
+    # Activity measurement
+    activity_type: str  # IC50, Ki, EC50, DC50, etc.
+    standard_value: float | None  # Original value (nM)
+    standard_units: str | None  # nM, uM, etc.
+    pchembl_value: float | None  # -log10(molar), comparable
+    relation: str | None  # =, <, >, ~, etc.
+
+    # Target context
+    target_name: str
+    target_chembl_id: str
+    target_type: str | None  # SINGLE PROTEIN, PROTEIN COMPLEX, etc.
+
+    # Assay context (optional)
+    mutation: str | None  # e.g., "V600E"
+    cell_line: str | None  # e.g., "A-375", "HEK293"
 
 
 class ChEMBLDatabase:
@@ -58,7 +89,8 @@ class ChEMBLDatabase:
     def conn(self) -> sqlite3.Connection:
         """Lazy database connection."""
         if self._conn is None:
-            self._conn = sqlite3.connect(str(self.db_path))
+            # check_same_thread=False allows use across threads (needed for LangGraph)
+            self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
         return self._conn
 
@@ -166,8 +198,9 @@ class ChEMBLDatabase:
         """
         query = """
         SELECT
-            a.assay_chembl_id,
+            ass.chembl_id as assay_chembl_id,
             a.standard_type,
+            a.pchembl_value,
             a.standard_value,
             a.standard_units,
             a.standard_relation,
@@ -179,6 +212,7 @@ class ChEMBLDatabase:
         JOIN assays ass ON a.assay_id = ass.assay_id
         JOIN target_dictionary td ON ass.tid = td.tid
         WHERE md.chembl_id = ?
+        AND a.pchembl_value IS NOT NULL
         """
         params = [chembl_id.upper()]
 
@@ -190,7 +224,7 @@ class ChEMBLDatabase:
             query += " AND td.target_type = ?"
             params.append(target_type.upper())
 
-        query += " ORDER BY a.standard_value ASC LIMIT ?"
+        query += " ORDER BY a.pchembl_value DESC LIMIT ?"
         params.append(limit)
 
         cursor = self.conn.execute(query, params)
@@ -198,8 +232,9 @@ class ChEMBLDatabase:
             ActivityData(
                 assay_chembl_id=row["assay_chembl_id"],
                 activity_type=row["standard_type"],
-                value=row["standard_value"],
-                units=row["standard_units"],
+                pchembl_value=row["pchembl_value"],
+                standard_value=row["standard_value"],
+                standard_units=row["standard_units"],
                 relation=row["standard_relation"],
                 target_name=row["target_name"],
                 target_chembl_id=row["target_chembl_id"],
@@ -245,110 +280,136 @@ class ChEMBLDatabase:
             for row in cursor.fetchall()
         ]
 
-    def get_compounds_for_target(
+    def search_by_target(
         self,
-        target_chembl_id: str,
-        activity_type: str = "IC50",
-        max_value: float | None = None,
-        limit: int = 100,
-    ) -> list[dict]:
-        """Get compounds with activity against a specific target.
+        target_name: str,
+        activity_type: str | None = None,
+        max_value_nm: float | None = None,
+        min_pchembl: float | None = None,
+        min_phase: int | None = None,
+        cell_line: str | None = None,
+        mutation: str | None = None,
+        deduplicate: bool = False,
+        limit: int = 50,
+    ) -> list[TargetActivityResult]:
+        """Search for compounds with activity against a target.
+
+        This is a "reverse query" - find compounds given a target, instead of
+        finding targets given a compound (which get_activities does).
 
         Args:
-            target_chembl_id: ChEMBL target ID (e.g., "CHEMBL203" for EGFR)
-            activity_type: Activity type to filter (default: IC50)
-            max_value: Maximum activity value (e.g., 1000 for nM)
-            limit: Maximum results
+            target_name: Target name to search (partial match, case-insensitive).
+                        Examples: "BRAF", "hERG", "topoisomerase I"
+            activity_type: Filter by activity type (IC50, Ki, EC50, DC50, etc.)
+            max_value_nm: Filter by standard_value <= X (in nM)
+            min_pchembl: Filter by pchembl_value >= X (e.g., 6.0 for sub-uM)
+            min_phase: Filter by max_phase >= X (0=preclinical, 4=approved)
+            cell_line: Filter by cell line name (partial match)
+            mutation: Filter by variant mutation (partial match, e.g., "V600E")
+            deduplicate: If True, return only best activity per compound
+            limit: Maximum results to return (default 50)
 
         Returns:
-            List of dicts with compound info and activity
+            List of TargetActivityResult sorted by pchembl_value (descending)
+
+        Example:
+            >>> db.search_by_target("BRAF", activity_type="IC50", mutation="V600E")
+            [TargetActivityResult(compound_name='DABRAFENIB', pchembl_value=9.3, ...)]
         """
-        query = """
-        SELECT DISTINCT
-            md.chembl_id,
-            md.pref_name,
-            cs.canonical_smiles,
-            a.standard_type,
-            a.standard_value,
-            a.standard_units
-        FROM activities a
-        JOIN molecule_dictionary md ON a.molregno = md.molregno
-        JOIN compound_structures cs ON md.molregno = cs.molregno
-        JOIN assays ass ON a.assay_id = ass.assay_id
-        JOIN target_dictionary td ON ass.tid = td.tid
-        WHERE td.chembl_id = ?
-        AND a.standard_type = ?
-        AND a.standard_value IS NOT NULL
-        """
-        params = [target_chembl_id.upper(), activity_type.upper()]
-
-        if max_value is not None:
-            query += " AND a.standard_value <= ?"
-            params.append(max_value)
-
-        query += " ORDER BY a.standard_value ASC LIMIT ?"
-        params.append(limit)
-
-        cursor = self.conn.execute(query, params)
-        return [
-            {
-                "chembl_id": row["chembl_id"],
-                "name": row["pref_name"],
-                "smiles": row["canonical_smiles"],
-                "activity_type": row["standard_type"],
-                "activity_value": row["standard_value"],
-                "activity_units": row["standard_units"],
-            }
-            for row in cursor.fetchall()
-        ]
-
-    def get_all_smiles(self, limit: int = 100000) -> list[dict]:
-        """Get SMILES for all compounds (for similarity search).
-
-        Args:
-            limit: Maximum compounds to return
-
-        Returns:
-            List of dicts with chembl_id, name, smiles
-        """
+        # Simple query - deduplication is done in Python for better performance
         query = """
         SELECT
-            md.chembl_id,
-            md.pref_name,
-            cs.canonical_smiles
-        FROM molecule_dictionary md
+            md.chembl_id as compound_chembl_id,
+            md.pref_name as compound_name,
+            cs.canonical_smiles as smiles,
+            md.max_phase,
+            a.standard_type as activity_type,
+            a.standard_value,
+            a.standard_units,
+            a.pchembl_value,
+            a.standard_relation as relation,
+            td.pref_name as target_name,
+            td.chembl_id as target_chembl_id,
+            td.target_type,
+            vs.mutation,
+            cd.cell_name as cell_line
+        FROM target_dictionary td
+        JOIN assays ass ON td.tid = ass.tid
+        JOIN activities a ON ass.assay_id = a.assay_id
+        JOIN molecule_dictionary md ON a.molregno = md.molregno
         JOIN compound_structures cs ON md.molregno = cs.molregno
-        WHERE cs.canonical_smiles IS NOT NULL
-        LIMIT ?
+        LEFT JOIN variant_sequences vs ON ass.variant_id = vs.variant_id
+        LEFT JOIN cell_dictionary cd ON ass.cell_id = cd.cell_id
+        WHERE LOWER(td.pref_name) LIKE LOWER(?)
+        AND a.pchembl_value IS NOT NULL
         """
-        cursor = self.conn.execute(query, (limit,))
-        return [
-            {
-                "chembl_id": row["chembl_id"],
-                "name": row["pref_name"],
-                "smiles": row["canonical_smiles"],
-            }
+
+        params: list = [f"%{target_name}%"]
+
+        # Add optional filters
+        if activity_type:
+            query += " AND a.standard_type = ?"
+            params.append(activity_type.upper())
+
+        if max_value_nm is not None:
+            query += " AND a.standard_value <= ?"
+            params.append(max_value_nm)
+
+        if min_pchembl is not None:
+            query += " AND a.pchembl_value >= ?"
+            params.append(min_pchembl)
+
+        if min_phase is not None:
+            query += " AND md.max_phase >= ?"
+            params.append(min_phase)
+
+        if cell_line:
+            query += " AND LOWER(cd.cell_name) LIKE LOWER(?)"
+            params.append(f"%{cell_line}%")
+
+        if mutation:
+            query += " AND LOWER(vs.mutation) LIKE LOWER(?)"
+            params.append(f"%{mutation}%")
+
+        # For deduplication, fetch more results then filter in Python (faster than SQL window)
+        fetch_limit = limit * 10 if deduplicate else limit
+        query += " ORDER BY a.pchembl_value DESC LIMIT ?"
+        params.append(fetch_limit)
+
+        # Execute query
+        cursor = self.conn.execute(query, params)
+
+        results = [
+            TargetActivityResult(
+                compound_chembl_id=row["compound_chembl_id"],
+                compound_name=row["compound_name"],
+                smiles=row["smiles"],
+                max_phase=row["max_phase"],
+                activity_type=row["activity_type"],
+                standard_value=row["standard_value"],
+                standard_units=row["standard_units"],
+                pchembl_value=row["pchembl_value"],
+                relation=row["relation"],
+                target_name=row["target_name"],
+                target_chembl_id=row["target_chembl_id"],
+                target_type=row["target_type"],
+                mutation=row["mutation"],
+                cell_line=row["cell_line"],
+            )
             for row in cursor.fetchall()
         ]
 
-    def get_smiles_by_ids(self, chembl_ids: list[str]) -> dict[str, str]:
-        """Get SMILES for a list of ChEMBL IDs.
+        # Python-based deduplication: keep best (first) activity per compound
+        if deduplicate:
+            seen: set[str] = set()
+            unique_results = []
+            for r in results:
+                if r.compound_chembl_id not in seen:
+                    seen.add(r.compound_chembl_id)
+                    unique_results.append(r)
+                    if len(unique_results) >= limit:
+                        break
+            return unique_results
 
-        Args:
-            chembl_ids: List of ChEMBL compound IDs
+        return results
 
-        Returns:
-            Dict mapping chembl_id to SMILES
-        """
-        if not chembl_ids:
-            return {}
-
-        placeholders = ",".join(["?"] * len(chembl_ids))
-        query = f"""
-        SELECT md.chembl_id, cs.canonical_smiles
-        FROM molecule_dictionary md
-        JOIN compound_structures cs ON md.molregno = cs.molregno
-        WHERE md.chembl_id IN ({placeholders})
-        """
-        cursor = self.conn.execute(query, [cid.upper() for cid in chembl_ids])
-        return {row["chembl_id"]: row["canonical_smiles"] for row in cursor.fetchall()}

@@ -4,9 +4,6 @@ from rag.chemistry.parsers import (
     MoleculeInfo,
     validate_smiles,
     parse_smiles,
-    canonicalize_smiles,
-    smiles_to_inchi,
-    smiles_to_inchikey,
     name_to_smiles,
     get_pubchem_info,
 )
@@ -14,12 +11,18 @@ from rag.chemistry.similarity import (
     FingerprintType,
     SimilarityResult,
     MolecularSimilarity,
-    compute_similarity_matrix,
 )
 from rag.chemistry.chembl import (
     CompoundInfo,
     ActivityData,
+    TargetActivityResult,
     ChEMBLDatabase,
+)
+from rag.chemistry.chemicalite import (
+    IndexStatus,
+    SubstructureResult,
+    IndexNotAvailableError,
+    ChemicaLiteSearch,
 )
 
 __all__ = [
@@ -27,18 +30,20 @@ __all__ = [
     "MoleculeInfo",
     "validate_smiles",
     "parse_smiles",
-    "canonicalize_smiles",
-    "smiles_to_inchi",
-    "smiles_to_inchikey",
     "name_to_smiles",
     "get_pubchem_info",
     # Similarity
     "FingerprintType",
     "SimilarityResult",
     "MolecularSimilarity",
-    "compute_similarity_matrix",
     # ChEMBL
     "CompoundInfo",
     "ActivityData",
+    "TargetActivityResult",
     "ChEMBLDatabase",
+    # ChemicaLite
+    "IndexStatus",
+    "SubstructureResult",
+    "IndexNotAvailableError",
+    "ChemicaLiteSearch",
 ]
