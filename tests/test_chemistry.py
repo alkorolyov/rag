@@ -288,3 +288,89 @@ class TestSearchByTarget:
         results = chembl_db.search_by_target("B-raf", max_value_nm=100.0, min_pchembl=7.0, limit=10)
         assert len(results) > 0
         assert all(r.standard_value is None or r.standard_value <= 100.0 for r in results)
+
+
+class TestDrugWarnings:
+    """Tests for drug warnings (FDA black box, withdrawals)."""
+
+    @pytest.fixture(scope="class")
+    def chembl_db(self):
+        """Create ChEMBL database connection (shared across class)."""
+        from pathlib import Path
+        from rag.chemistry.chembl import ChEMBLDatabase
+
+        db_path = Path.home() / "data/chembl/chembl_36/chembl_36_sqlite/chembl_36.db"
+        if not db_path.exists():
+            pytest.skip(f"ChEMBL database not found at {db_path}")
+        db = ChEMBLDatabase(db_path)
+        yield db
+        db.close()
+
+    def test_get_drug_warnings_all(self, chembl_db):
+        """Test getting all drug warnings."""
+        from rag.chemistry.chembl import DrugWarning
+
+        results = chembl_db.get_drug_warnings(limit=20)
+        assert len(results) > 0
+        assert all(isinstance(r, DrugWarning) for r in results)
+
+    def test_get_drug_warnings_by_name(self, chembl_db):
+        """Test filtering by compound name."""
+        # Rosiglitazone has known cardiac warnings
+        results = chembl_db.get_drug_warnings(compound_name="rosiglitazone", limit=10)
+        assert len(results) > 0
+        assert all("ROSIGLITAZONE" in r.compound_name.upper() for r in results if r.compound_name)
+
+    def test_get_drug_warnings_by_class(self, chembl_db):
+        """Test filtering by warning class."""
+        results = chembl_db.get_drug_warnings(warning_class="hepatotoxicity", limit=10)
+        assert len(results) > 0
+        assert all("hepatotoxicity" in r.warning_class.lower() for r in results if r.warning_class)
+
+    def test_get_drug_warnings_no_results(self, chembl_db):
+        """Test nonexistent compound returns empty list."""
+        results = chembl_db.get_drug_warnings(chembl_id="CHEMBL_NONEXISTENT_999999")
+        assert results == []
+
+
+class TestCompoundLiterature:
+    """Tests for compound literature references."""
+
+    @pytest.fixture(scope="class")
+    def chembl_db(self):
+        """Create ChEMBL database connection (shared across class)."""
+        from pathlib import Path
+        from rag.chemistry.chembl import ChEMBLDatabase
+
+        db_path = Path.home() / "data/chembl/chembl_36/chembl_36_sqlite/chembl_36.db"
+        if not db_path.exists():
+            pytest.skip(f"ChEMBL database not found at {db_path}")
+        db = ChEMBLDatabase(db_path)
+        yield db
+        db.close()
+
+    def test_get_compound_literature_basic(self, chembl_db):
+        """Test getting literature for imatinib (well-studied drug)."""
+        from rag.chemistry.chembl import LiteratureRef
+
+        # CHEMBL941 = Imatinib - very well-studied
+        results = chembl_db.get_compound_literature("CHEMBL941", limit=10)
+        assert len(results) > 0
+        assert all(isinstance(r, LiteratureRef) for r in results)
+        # Should have PubMed IDs
+        assert all(r.pubmed_id is not None for r in results)
+
+    def test_get_compound_literature_fields(self, chembl_db):
+        """Test that literature fields are populated."""
+        results = chembl_db.get_compound_literature("CHEMBL941", limit=5)
+        assert len(results) > 0
+
+        r = results[0]
+        assert r.pubmed_id is not None
+        # Title and journal should generally be present
+        assert r.title is not None or r.journal is not None
+
+    def test_get_compound_literature_no_results(self, chembl_db):
+        """Test nonexistent compound returns empty list."""
+        results = chembl_db.get_compound_literature("CHEMBL_NONEXISTENT_999999")
+        assert results == []

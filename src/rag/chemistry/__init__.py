@@ -16,6 +16,8 @@ from rag.chemistry.chembl import (
     CompoundInfo,
     ActivityData,
     TargetActivityResult,
+    DrugWarning,
+    LiteratureRef,
     ChEMBLDatabase,
 )
 from rag.chemistry.chemicalite import (
@@ -40,6 +42,8 @@ __all__ = [
     "CompoundInfo",
     "ActivityData",
     "TargetActivityResult",
+    "DrugWarning",
+    "LiteratureRef",
     "ChEMBLDatabase",
     # ChemicaLite
     "IndexStatus",

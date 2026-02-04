@@ -62,6 +62,32 @@ class TargetActivityResult:
     cell_line: str | None  # e.g., "A-375", "HEK293"
 
 
+@dataclass
+class DrugWarning:
+    """Regulatory warning for a drug (FDA black box, withdrawals, etc.)."""
+
+    chembl_id: str
+    compound_name: str | None
+    warning_type: str | None  # "Black Box Warning", "Withdrawn", etc.
+    warning_class: str | None  # "hepatotoxicity", "cardiotoxicity", etc.
+    warning_description: str | None
+    warning_country: str | None
+    warning_year: int | None
+    efo_term: str | None  # Experimental Factor Ontology term
+
+
+@dataclass
+class LiteratureRef:
+    """Literature reference from ChEMBL docs table."""
+
+    pubmed_id: int | None
+    doi: str | None
+    title: str | None
+    journal: str | None
+    year: int | None
+    abstract: str | None
+
+
 class ChEMBLDatabase:
     """Query local ChEMBL SQLite database.
 
@@ -412,4 +438,124 @@ class ChEMBLDatabase:
             return unique_results
 
         return results
+
+    def get_drug_warnings(
+        self,
+        chembl_id: str | None = None,
+        compound_name: str | None = None,
+        warning_class: str | None = None,
+        limit: int = 50,
+    ) -> list[DrugWarning]:
+        """Get regulatory warnings (FDA black box, withdrawals) for drugs.
+
+        Args:
+            chembl_id: Filter by specific compound ChEMBL ID
+            compound_name: Filter by compound name (partial match)
+            warning_class: Filter by warning class (e.g., "hepatotoxicity")
+            limit: Maximum results to return
+
+        Returns:
+            List of DrugWarning objects
+
+        Example:
+            >>> db.get_drug_warnings(compound_name="rosiglitazone")
+            [DrugWarning(warning_class='cardiotoxicity', ...)]
+        """
+        query = """
+        SELECT
+            md.chembl_id,
+            md.pref_name as compound_name,
+            dw.warning_type,
+            dw.warning_class,
+            dw.warning_description,
+            dw.warning_country,
+            dw.warning_year,
+            dw.efo_term
+        FROM drug_warning dw
+        JOIN molecule_dictionary md ON dw.molregno = md.molregno
+        WHERE 1=1
+        """
+        params: list = []
+
+        if chembl_id:
+            query += " AND md.chembl_id = ?"
+            params.append(chembl_id.upper())
+
+        if compound_name:
+            query += " AND LOWER(md.pref_name) LIKE LOWER(?)"
+            params.append(f"%{compound_name}%")
+
+        if warning_class:
+            query += " AND LOWER(dw.warning_class) LIKE LOWER(?)"
+            params.append(f"%{warning_class}%")
+
+        query += " ORDER BY dw.warning_year DESC LIMIT ?"
+        params.append(limit)
+
+        cursor = self.conn.execute(query, params)
+
+        return [
+            DrugWarning(
+                chembl_id=row["chembl_id"],
+                compound_name=row["compound_name"],
+                warning_type=row["warning_type"],
+                warning_class=row["warning_class"],
+                warning_description=row["warning_description"],
+                warning_country=row["warning_country"],
+                warning_year=row["warning_year"],
+                efo_term=row["efo_term"],
+            )
+            for row in cursor.fetchall()
+        ]
+
+    def get_compound_literature(
+        self,
+        chembl_id: str,
+        limit: int = 10,
+    ) -> list[LiteratureRef]:
+        """Get literature references (PubMed) for a compound.
+
+        Returns publications linked to assays involving the compound.
+
+        Args:
+            chembl_id: Compound ChEMBL ID
+            limit: Maximum results to return
+
+        Returns:
+            List of LiteratureRef objects with PubMed IDs, titles, abstracts
+
+        Example:
+            >>> db.get_compound_literature("CHEMBL941")  # Imatinib
+            [LiteratureRef(pubmed_id=12345, title='...', ...)]
+        """
+        query = """
+        SELECT DISTINCT
+            d.pubmed_id,
+            d.doi,
+            d.title,
+            d.journal,
+            d.year,
+            d.abstract
+        FROM docs d
+        JOIN assays ass ON d.doc_id = ass.doc_id
+        JOIN activities a ON ass.assay_id = a.assay_id
+        JOIN molecule_dictionary md ON a.molregno = md.molregno
+        WHERE md.chembl_id = ?
+        AND d.pubmed_id IS NOT NULL
+        ORDER BY d.year DESC
+        LIMIT ?
+        """
+        cursor = self.conn.execute(query, (chembl_id.upper(), limit))
+
+        return [
+            LiteratureRef(
+                pubmed_id=row["pubmed_id"],
+                doi=row["doi"],
+                title=row["title"],
+                journal=row["journal"],
+                year=row["year"],
+                abstract=row["abstract"],
+            )
+            for row in cursor.fetchall()
+        ]
 

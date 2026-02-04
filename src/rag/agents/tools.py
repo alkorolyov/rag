@@ -105,6 +105,29 @@ class SearchByTargetInput(BaseModel):
     limit: int = Field(default=20, description="Maximum number of results to return")
 
 
+class GetDrugWarningsInput(BaseModel):
+    """Input for get_drug_warnings tool."""
+
+    chembl_id: str | None = Field(
+        default=None, description="Filter by specific compound ChEMBL ID"
+    )
+    compound_name: str | None = Field(
+        default=None, description="Filter by compound name (partial match)"
+    )
+    warning_class: str | None = Field(
+        default=None,
+        description="Filter by warning class (e.g., 'hepatotoxicity', 'cardiotoxicity')",
+    )
+    limit: int = Field(default=20, description="Maximum number of results")
+
+
+class GetCompoundLiteratureInput(BaseModel):
+    """Input for get_compound_literature tool."""
+
+    chembl_id: str = Field(description="Compound ChEMBL ID (e.g., 'CHEMBL941')")
+    limit: int = Field(default=10, description="Maximum number of references to return")
+
+
 # ============================================================================
 # Tool factory function
 # ============================================================================
@@ -288,6 +311,55 @@ def create_tools(ctx: ChemistryAgentContext) -> list:
             return []
         return [asdict(r) for r in results]
 
+    @tool(args_schema=GetDrugWarningsInput)
+    def get_drug_warnings(
+        chembl_id: str | None = None,
+        compound_name: str | None = None,
+        warning_class: str | None = None,
+        limit: int = 20,
+    ) -> list[dict]:
+        """Get regulatory warnings (FDA black box, withdrawals) for drugs.
+
+        Use this to check drug safety issues, recalls, or adverse events.
+
+        Use cases:
+        - Get warnings for a specific drug: chembl_id="CHEMBL941"
+        - Search by drug name: compound_name="rosiglitazone"
+        - Find drugs with cardiac warnings: warning_class="cardiotoxicity"
+        - Find drugs with liver warnings: warning_class="hepatotoxicity"
+
+        Returns warning details including type, class, description, and year.
+        """
+        results = ctx.chembl.get_drug_warnings(
+            chembl_id=chembl_id,
+            compound_name=compound_name,
+            warning_class=warning_class,
+            limit=limit,
+        )
+        if not results:
+            return []
+        return [asdict(r) for r in results]
+
+    @tool(args_schema=GetCompoundLiteratureInput)
+    def get_compound_literature(
+        chembl_id: str,
+        limit: int = 10,
+    ) -> list[dict]:
+        """Get literature references (PubMed) for a compound.
+
+        Returns publications linked to assays involving the compound.
+        Useful for finding evidence, mechanisms, or clinical data.
+
+        Returns PubMed IDs, titles, journals, years, and abstracts.
+        """
+        results = ctx.chembl.get_compound_literature(
+            chembl_id=chembl_id,
+            limit=limit,
+        )
+        if not results:
+            return []
+        return [asdict(r) for r in results]
+
     return [
         analyze_molecule,
         resolve_compound_name,
@@ -297,4 +369,6 @@ def create_tools(ctx: ChemistryAgentContext) -> list:
         get_bioactivities,
         extract_entities,
         search_compounds_by_target,
+        get_drug_warnings,
+        get_compound_literature,
     ]
