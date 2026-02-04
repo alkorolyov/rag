@@ -202,6 +202,8 @@ def create_tools(ctx: ChemistryAgentContext) -> list:
                 top_k=top_k,
                 threshold=threshold,
             )
+            if not results:
+                return {"message": f"No similar compounds found above threshold {threshold}. Try lowering the threshold."}
             return [asdict(r) for r in results]
         except ValueError as e:
             raise ToolException(str(e))
@@ -230,7 +232,7 @@ def create_tools(ctx: ChemistryAgentContext) -> list:
         """
         results = ctx.chembl.search_by_name(name, limit=limit)
         if not results:
-            return []
+            return {"message": f"No compounds found matching name '{name}'. Try different spelling or partial name."}
         return [asdict(r) for r in results]
 
     @tool(args_schema=GetBioactivitiesInput)
@@ -254,7 +256,13 @@ def create_tools(ctx: ChemistryAgentContext) -> list:
             chembl_id, activity_type=activity_type, target_type=target_type, limit=limit
         )
         if not results:
-            return []
+            filters = []
+            if activity_type:
+                filters.append(f"activity_type={activity_type}")
+            if target_type:
+                filters.append(f"target_type={target_type}")
+            filter_str = f" with filters: {', '.join(filters)}" if filters else ""
+            return {"message": f"No bioactivity data found for {chembl_id}{filter_str}. Try removing filters or check the compound ID."}
         return [asdict(r) for r in results]
 
     @tool(args_schema=ExtractEntitiesInput)
@@ -271,7 +279,10 @@ def create_tools(ctx: ChemistryAgentContext) -> list:
         Returns entities grouped by type.
         """
         result = ctx.ner.extract(text)
-        return result.to_dict()
+        entity_dict = result.to_dict()
+        if not entity_dict:
+            return {"message": "No biomedical entities found in the text. The text may not contain recognizable gene, disease, chemical, or other biomedical terms."}
+        return entity_dict
 
     @tool(args_schema=SearchByTargetInput)
     def search_compounds_by_target(
@@ -308,7 +319,7 @@ def create_tools(ctx: ChemistryAgentContext) -> list:
             limit=limit,
         )
         if not results:
-            return []
+            return {"message": f"No compounds found for target '{target_name}' with the specified filters. Try broader search terms (e.g., 'B-raf' instead of 'BRAF')."}
         return [asdict(r) for r in results]
 
     @tool(args_schema=GetDrugWarningsInput)
@@ -337,7 +348,8 @@ def create_tools(ctx: ChemistryAgentContext) -> list:
             limit=limit,
         )
         if not results:
-            return []
+            search_desc = chembl_id or compound_name or f"warning_class={warning_class}" or "all drugs"
+            return {"message": f"No regulatory warnings found for {search_desc}. This could mean the drug has no FDA warnings on record."}
         return [asdict(r) for r in results]
 
     @tool(args_schema=GetCompoundLiteratureInput)
@@ -357,7 +369,7 @@ def create_tools(ctx: ChemistryAgentContext) -> list:
             limit=limit,
         )
         if not results:
-            return []
+            return {"message": f"No literature references found for {chembl_id} in ChEMBL. Try searching PubMed directly for more results."}
         return [asdict(r) for r in results]
 
     return [

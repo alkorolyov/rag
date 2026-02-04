@@ -1,0 +1,62 @@
+name: rag
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Core
+  - python=3.12
+  - pip
+
+  # Cheminformatics (conda-forge only)
+  - rdkit>=2024.03
+  - chemicalite
+
+  # Scientific (better from conda)
+  - pandas>=2.0
+
+  # pip for the rest
+  - pip:
+      # Project (editable)
+      - -e .
+
+      # ML/NLP
+      - transformers==4.56.0
+      - sentence-transformers>=5.1.1,<6
+      - spacy>=3.8.7,<4
+      - tiktoken>=0.12,<0.13
+
+      # LangChain
+      - langchain>=1.0.3,<2
+      - langchain-core>=1.0.2,<2
+      - langchain-community>=0.4.1,<0.5
+      - langchain-text-splitters>=1.0,<2
+      - langchain-groq>=1.0,<2
+      - langgraph>=1.0,<2
+      - "langgraph-cli[inmem]>=0.2,<1"
+
+      # API
+      - fastapi>=0.118.3,<0.119
+      - uvicorn[standard]>=0.37,<0.38
+
+      # LLM client
+      - groq>=0.33,<0.34
+
+      # Database
+      - psycopg[binary]>=3.2.10,<4
+      - redis[hiredis]>=5,<7
+      - qdrant-client>=1.15.1,<2
+
+      # MLOps
+      - mlflow>=3.4,<4
+
+      # Utils
+      - pydantic-settings>=2.11,<3
+      - python-dotenv>=1.1.1,<2
+      - pubchempy>=1.0.5,<2
+      - datasets>=4.2,<5
+
+      # Dev
+      - notebook>=7.4.7,<8
+      - pytest>=8.4.2,<9
+      - black>=25.9,<26
+      - ruff>=0.14,<0.15
